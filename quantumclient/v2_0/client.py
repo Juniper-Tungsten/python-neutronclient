@@ -162,6 +162,8 @@ class Client(object):
     router_path = "/routers/%s"
     floatingips_path = "/floatingips"
     floatingip_path = "/floatingips/%s"
+    ipams_path = "/ipams"
+    ipam_path = "/ipam/%s"
 
     @APIParamsCall
     def get_quotas_tenant(self, **_params):
@@ -409,6 +411,42 @@ class Client(object):
         Deletes the specified floatingip
         """
         return self.delete(self.floatingip_path % (floatingip))
+
+    @APIParamsCall
+    def list_ipams(self, **_params):
+        """
+        Fetches a list of all ipams for a tenant
+        """
+        # Pass filters in "params" argument to do_request
+        return self.get(self.ipams_path, params=_params)
+
+    @APIParamsCall
+    def show_ipam(self, ipam, **_params):
+        """
+        Fetches information of a certain ipam
+        """
+        return self.get(self.ipam_path % (ipam), params=_params)
+
+    @APIParamsCall
+    def create_ipam(self, body=None):
+        """
+        Creates a new ipam
+        """
+        return self.post(self.ipams_path, body=body)
+
+    @APIParamsCall
+    def update_ipam(self, ipam, body=None):
+        """
+        Updates an ipam
+        """
+        return self.put(self.ipam_path % (ipam), body=body)
+
+    @APIParamsCall
+    def delete_ipam(self, ipam):
+        """
+        Deletes the specified ipam
+        """
+        return self.delete(self.ipam_path % (ipam))
 
     def __init__(self, **kwargs):
         """ Initialize a new client for the Quantum v2.0 API. """
