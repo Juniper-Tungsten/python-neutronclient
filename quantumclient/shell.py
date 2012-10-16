@@ -124,6 +124,16 @@ COMMAND_V2 = {
         'quantumclient.quantum.v2_0.floatingip.AssociateFloatingIP'),
     'floatingip-disassociate': utils.import_class(
         'quantumclient.quantum.v2_0.floatingip.DisassociateFloatingIP'),
+    'ipam-list': utils.import_class(
+        'quantumclient.quantum.v2_0.ipam.ListIpam'),
+    'ipam-show': utils.import_class(
+        'quantumclient.quantum.v2_0.ipam.ShowIpam'),
+    'ipam-create': utils.import_class(
+        'quantumclient.quantum.v2_0.ipam.CreateIpam'),
+    'ipam-delete': utils.import_class(
+        'quantumclient.quantum.v2_0.ipam.DeleteIpam'),
+    'ipam-update': utils.import_class(
+        'quantumclient.quantum.v2_0.ipam.UpdateIpam'),
 }
 
 COMMANDS = {'2.0': COMMAND_V2}
