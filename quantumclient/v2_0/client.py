@@ -163,7 +163,7 @@ class Client(object):
     floatingips_path = "/floatingips"
     floatingip_path = "/floatingips/%s"
     ipams_path = "/ipams"
-    ipam_path = "/ipam/%s"
+    ipam_path = "/ipams/%s"
 
     @APIParamsCall
     def get_quotas_tenant(self, **_params):
