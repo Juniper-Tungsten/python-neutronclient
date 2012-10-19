@@ -13,6 +13,7 @@ class ListIpam(ListCommand):
 
     resource = 'ipam'
     log = logging.getLogger(__name__ + '.ListIpam')
+    _formatters = {}
     list_columns = ['id', 'name']
 
 
