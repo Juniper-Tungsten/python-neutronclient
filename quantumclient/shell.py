@@ -134,6 +134,16 @@ COMMAND_V2 = {
         'quantumclient.quantum.v2_0.ipam.DeleteIpam'),
     'ipam-update': utils.import_class(
         'quantumclient.quantum.v2_0.ipam.UpdateIpam'),
+    'policy-list': utils.import_class(
+        'quantumclient.quantum.v2_0.policy.ListPolicy'),
+    'policy-show': utils.import_class(
+        'quantumclient.quantum.v2_0.policy.ShowPolicy'),
+    'policy-create': utils.import_class(
+        'quantumclient.quantum.v2_0.policy.CreatePolicy'),
+    'policy-delete': utils.import_class(
+        'quantumclient.quantum.v2_0.policy.DeletePolicy'),
+    'policy-update': utils.import_class(
+        'quantumclient.quantum.v2_0.policy.UpdatePolicy'),
 }
 
 COMMANDS = {'2.0': COMMAND_V2}

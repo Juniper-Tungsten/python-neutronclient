@@ -45,7 +45,7 @@ class CreateIpam(CreateCommand):
             'mgmt': {'method': parsed_args.method}, },
                }
         if parsed_args.tenant_id:
-            body['network'].update({'tenant_id': parsed_args.tenant_id})
+            body['ipam'].update({'tenant_id': parsed_args.tenant_id})
         return body
 
 

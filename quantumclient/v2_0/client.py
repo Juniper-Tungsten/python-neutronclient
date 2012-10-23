@@ -164,6 +164,8 @@ class Client(object):
     floatingip_path = "/floatingips/%s"
     ipams_path = "/ipams"
     ipam_path = "/ipams/%s"
+    policys_path = "/policys"
+    policy_path = "/policys/%s"
 
     @APIParamsCall
     def get_quotas_tenant(self, **_params):
@@ -447,6 +449,42 @@ class Client(object):
         Deletes the specified ipam
         """
         return self.delete(self.ipam_path % (ipam))
+
+    @APIParamsCall
+    def list_policys(self, **_params):
+        """
+        Fetches a list of all policys for a tenant
+        """
+        # Pass filters in "params" argument to do_request
+        return self.get(self.policys_path, params=_params)
+
+    @APIParamsCall
+    def show_policy(self, policy, **_params):
+        """
+        Fetches information of a certain policy
+        """
+        return self.get(self.policy_path % (policy), params=_params)
+
+    @APIParamsCall
+    def create_policy(self, body=None):
+        """
+        Creates a new policy
+        """
+        return self.post(self.policys_path, body=body)
+
+    @APIParamsCall
+    def update_policy(self, policy, body=None):
+        """
+        Updates a policy
+        """
+        return self.put(self.policy_path % (policy), body=body)
+
+    @APIParamsCall
+    def delete_policy(self, policy):
+        """
+        Deletes the specified policy
+        """
+        return self.delete(self.policy_path % (policy))
 
     def __init__(self, **kwargs):
         """ Initialize a new client for the Quantum v2.0 API. """
