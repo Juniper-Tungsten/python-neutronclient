@@ -957,7 +957,7 @@ class Client(object):
         """
         return self.delete((self.agent_path + self.L3_ROUTERS + "/%s") % (
             l3_agent, router_id))
-/bin/bash: :w: command not found
+
     def __init__(self, **kwargs):
         """Initialize a new client for the Quantum v2.0 API."""
         super(Client, self).__init__()
