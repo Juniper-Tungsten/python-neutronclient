@@ -27,11 +27,11 @@ from quantumclient.quantum.v2_0.router import RemoveInterfaceRouter
 from quantumclient.quantum.v2_0.router import SetGatewayRouter
 from quantumclient.quantum.v2_0.router import ShowRouter
 from quantumclient.quantum.v2_0.router import UpdateRouter
-from quantumclient.tests.unit.test_cli20 import CLITestV20Base
-from quantumclient.tests.unit.test_cli20 import MyApp
+from tests.unit.test_cli20 import CLITestV20Base
+from tests.unit.test_cli20 import MyApp
 
 
-class CLITestV20Router(CLITestV20Base):
+class CLITestV20RouterJSON(CLITestV20Base):
     def test_create_router(self):
         """Create router: router1."""
         resource = 'router'
@@ -41,8 +41,8 @@ class CLITestV20Router(CLITestV20Base):
         args = [name, ]
         position_names = ['name', ]
         position_values = [name, ]
-        _str = self._test_create_resource(resource, cmd, name, myid, args,
-                                          position_names, position_values)
+        self._test_create_resource(resource, cmd, name, myid, args,
+                                   position_names, position_values)
 
     def test_create_router_tenant(self):
         """Create router: --tenant_id tenantid myname."""
@@ -53,9 +53,9 @@ class CLITestV20Router(CLITestV20Base):
         args = ['--tenant_id', 'tenantid', name]
         position_names = ['name', ]
         position_values = [name, ]
-        _str = self._test_create_resource(resource, cmd, name, myid, args,
-                                          position_names, position_values,
-                                          tenant_id='tenantid')
+        self._test_create_resource(resource, cmd, name, myid, args,
+                                   position_names, position_values,
+                                   tenant_id='tenantid')
 
     def test_create_router_admin_state(self):
         """Create router: --admin_state_down myname."""
@@ -66,15 +66,36 @@ class CLITestV20Router(CLITestV20Base):
         args = ['--admin_state_down', name, ]
         position_names = ['name', ]
         position_values = [name, ]
-        _str = self._test_create_resource(resource, cmd, name, myid, args,
-                                          position_names, position_values,
-                                          admin_state_up=False)
+        self._test_create_resource(resource, cmd, name, myid, args,
+                                   position_names, position_values,
+                                   admin_state_up=False)
 
     def test_list_routers_detail(self):
         """list routers: -D."""
         resources = "routers"
         cmd = ListRouter(MyApp(sys.stdout), None)
         self._test_list_resources(resources, cmd, True)
+
+    def test_list_routers_pagination(self):
+        resources = "routers"
+        cmd = ListRouter(MyApp(sys.stdout), None)
+        self._test_list_resources_with_pagination(resources, cmd)
+
+    def test_list_routers_sort(self):
+        """list routers: --sort-key name --sort-key id --sort-key asc
+        --sort-key desc
+        """
+        resources = "routers"
+        cmd = ListRouter(MyApp(sys.stdout), None)
+        self._test_list_resources(resources, cmd,
+                                  sort_key=["name", "id"],
+                                  sort_dir=["asc", "desc"])
+
+    def test_list_routers_limit(self):
+        """list routers: -P."""
+        resources = "routers"
+        cmd = ListRouter(MyApp(sys.stdout), None)
+        self._test_list_resources(resources, cmd, page_size=1000)
 
     def test_update_router_exception(self):
         """Update router: myid."""
@@ -109,7 +130,7 @@ class CLITestV20Router(CLITestV20Base):
                                  ['id', 'name'])
 
     def test_add_interface(self):
-        """Add interface to router: myid subnetid"""
+        """Add interface to router: myid subnetid."""
         resource = 'router'
         cmd = AddInterfaceRouter(MyApp(sys.stdout), None)
         args = ['myid', 'subnetid']
@@ -120,7 +141,7 @@ class CLITestV20Router(CLITestV20Base):
                                           )
 
     def test_del_interface(self):
-        """Delete interface from router: myid subnetid"""
+        """Delete interface from router: myid subnetid."""
         resource = 'router'
         cmd = RemoveInterfaceRouter(MyApp(sys.stdout), None)
         args = ['myid', 'subnetid']
@@ -131,21 +152,26 @@ class CLITestV20Router(CLITestV20Base):
                                           )
 
     def test_set_gateway(self):
-        """Set external gateway for router: myid externalid"""
+        """Set external gateway for router: myid externalid."""
         resource = 'router'
         cmd = SetGatewayRouter(MyApp(sys.stdout), None)
         args = ['myid', 'externalid']
         self._test_update_resource(resource, cmd, 'myid',
                                    args,
                                    {"external_gateway_info":
-                                    {"network_id": "externalid"}}
+                                    {"network_id": "externalid",
+                                     "enable_snat": True}}
                                    )
 
     def test_remove_gateway(self):
-        """Remove external gateway from router: externalid"""
+        """Remove external gateway from router: externalid."""
         resource = 'router'
         cmd = RemoveGatewayRouter(MyApp(sys.stdout), None)
         args = ['externalid']
         self._test_update_resource(resource, cmd, 'externalid',
                                    args, {"external_gateway_info": {}}
                                    )
+
+
+class CLITestV20RouterXML(CLITestV20RouterJSON):
+    format = 'xml'

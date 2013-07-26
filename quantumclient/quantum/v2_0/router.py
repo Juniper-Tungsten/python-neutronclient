@@ -42,6 +42,8 @@ class ListRouter(ListCommand):
     log = logging.getLogger(__name__ + '.ListRouter')
     _formatters = {'external_gateway_info': _format_external_gateway_info, }
     list_columns = ['id', 'name', 'external_gateway_info']
+    pagination_support = True
+    sorting_support = True
 
 
 class ShowRouter(ShowCommand):
@@ -56,24 +58,25 @@ class CreateRouter(CreateCommand):
 
     resource = 'router'
     log = logging.getLogger(__name__ + '.CreateRouter')
+    _formatters = {'external_gateway_info': _format_external_gateway_info, }
 
     def add_known_arguments(self, parser):
         parser.add_argument(
             '--admin-state-down',
-            default=True, action='store_false',
+            dest='admin_state', action='store_false',
             help='Set Admin State Up to false')
         parser.add_argument(
             '--admin_state_down',
-            action='store_false',
+            dest='admin_state', action='store_false',
             help=argparse.SUPPRESS)
         parser.add_argument(
-            'name', metavar='name',
+            'name', metavar='NAME',
             help='Name of router to create')
 
     def args2body(self, parsed_args):
         body = {'router': {
             'name': parsed_args.name,
-            'admin_state_up': parsed_args.admin_state_down, }, }
+            'admin_state_up': parsed_args.admin_state, }, }
         if parsed_args.tenant_id:
             body['router'].update({'tenant_id': parsed_args.tenant_id})
         return body
@@ -163,6 +166,9 @@ class SetGatewayRouter(QuantumCommand):
         parser.add_argument(
             'external_network_id', metavar='external-network-id',
             help='ID of the external network for the gateway')
+        parser.add_argument(
+            '--disable-snat', action='store_false', dest='enable_snat',
+            help='Disable Source NAT on the router gateway')
         return parser
 
     def run(self, parsed_args):
@@ -173,8 +179,10 @@ class SetGatewayRouter(QuantumCommand):
             quantum_client, self.resource, parsed_args.router_id)
         _ext_net_id = quantumv20.find_resourceid_by_name_or_id(
             quantum_client, 'network', parsed_args.external_network_id)
-        quantum_client.add_gateway_router(_router_id,
-                                          {'network_id': _ext_net_id})
+        quantum_client.add_gateway_router(
+            _router_id,
+            {'network_id': _ext_net_id,
+             'enable_snat': parsed_args.enable_snat})
         print >>self.app.stdout, (
             _('Set gateway for router %s') % parsed_args.router_id)
 
