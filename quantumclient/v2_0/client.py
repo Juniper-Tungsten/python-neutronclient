@@ -543,6 +543,7 @@ class Client(object):
         Deletes the specified policy
         """
         return self.delete(self.policy_path % (policy))
+
     def create_security_group(self, body=None):
         """
         Creates a new security group

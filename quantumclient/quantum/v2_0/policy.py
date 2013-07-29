@@ -41,7 +41,7 @@ class CreatePolicy(CreateCommand):
 
     def args2body(self, parsed_args):
         body = {'policy': {
-            'name': parsed_args.name,},}
+            'name': parsed_args.name, }, }
         if parsed_args.tenant_id:
             body['policy'].update({'tenant_id': parsed_args.tenant_id})
         return body
