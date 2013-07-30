@@ -107,9 +107,11 @@ class CreateNatInstance(quantumv20.CreateCommand):
         if parsed_args.tenant_id:
             body['nat_instance'].update({'tenant_id': parsed_args.tenant_id})
         if parsed_args.internal_net:
-            body['nat_instance'].update({'internal_net': parsed_args.internal_net})
+            body['nat_instance'].update({
+                    'internal_net': parsed_args.internal_net})
         if parsed_args.external_net:
-            body['nat_instance'].update({'external_net': parsed_args.external_net})
+            body['nat_instance'].update({
+                    'external_net': parsed_args.external_net})
         return body
 
 

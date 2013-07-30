@@ -163,6 +163,10 @@ class Client(object):
     ipam_path = "/ipams/%s"
     policys_path = "/policys"
     policy_path = "/policys/%s"
+    route_tables_path = "/route-tables"
+    route_table_path = "/route-tables/%s"
+    nat_instances_path = "/nat-instances"
+    nat_instance_path = "/nat-instances/%s"
     security_groups_path = "/security-groups"
     security_group_path = "/security-groups/%s"
     security_group_rules_path = "/security-group-rules"
@@ -543,6 +547,66 @@ class Client(object):
         Deletes the specified policy
         """
         return self.delete(self.policy_path % (policy))
+
+    @APIParamsCall
+    def create_route_table(self, body=None):
+        """
+        Creates a new route table
+        """
+        return self.post(self.route_tables_path, body=body)
+
+    @APIParamsCall
+    def list_route_tables(self, retrieve_all=True, **_params):
+        """
+        Fetches a list of all route tables for a tenant
+        """
+        return self.list('route_tables', self.route_tables_path,
+                         retrieve_all, **_params)
+
+    @APIParamsCall
+    def show_route_table(self, route_table, **_params):
+        """
+        Fetches information of a certain route table
+        """
+        return self.get(self.route_table_path % (route_table),
+                        params=_params)
+
+    @APIParamsCall
+    def delete_route_table(self, route_table):
+        """
+        Deletes the specified route table
+        """
+        return self.delete(self.route_table_path % (route_table))
+
+    @APIParamsCall
+    def create_nat_instance(self, body=None):
+        """
+        Creates a new nat instance
+        """
+        return self.post(self.nat_instances_path, body=body)
+
+    @APIParamsCall
+    def list_nat_instances(self, retrieve_all=True, **_params):
+        """
+        Fetches a list of all nat instances for a tenant
+        """
+        return self.list('nat_instances', self.nat_instances_path,
+                         retrieve_all, **_params)
+
+    @APIParamsCall
+    def show_nat_instance(self, nat_instance, **_params):
+        """
+        Fetches information of a certain nat instance
+        """
+        return self.get(self.nat_instance_path % (nat_instance),
+                        params=_params)
+
+    @APIParamsCall
+    def delete_nat_instance(self, nat_instance):
+        """
+        Deletes the specified nat instance
+        """
+        return self.delete(self.nat_instance_path % (nat_instance))
 
     def create_security_group(self, body=None):
         """

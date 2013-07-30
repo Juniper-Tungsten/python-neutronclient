@@ -162,6 +162,22 @@ COMMAND_V2 = {
         'quantumclient.quantum.v2_0.policy.DeletePolicy'),
     'policy-update': utils.import_class(
         'quantumclient.quantum.v2_0.policy.UpdatePolicy'),
+    'nat-instance-list': utils.import_class(
+        'quantumclient.quantum.v2_0.vpcroutetable.ListNatInstance'),
+    'nat-instance-show': utils.import_class(
+        'quantumclient.quantum.v2_0.vpcroutetable.ShowNatInstance'),
+    'nat-instance-create': utils.import_class(
+        'quantumclient.quantum.v2_0.vpcroutetable.CreateNatInstance'),
+    'nat-instance-delete': utils.import_class(
+        'quantumclient.quantum.v2_0.vpcroutetable.DeleteNatInstance'),
+    'route-table-list': utils.import_class(
+        'quantumclient.quantum.v2_0.vpcroutetable.ListRouteTable'),
+    'route-table-show': utils.import_class(
+        'quantumclient.quantum.v2_0.vpcroutetable.ShowRouteTable'),
+    'route-table-create': utils.import_class(
+        'quantumclient.quantum.v2_0.vpcroutetable.CreateRouteTable'),
+    'route-table-delete': utils.import_class(
+        'quantumclient.quantum.v2_0.vpcroutetable.DeleteRouteTable'),
     'security-group-list': utils.import_class(
         'quantumclient.quantum.v2_0.securitygroup.ListSecurityGroup'),
     'security-group-show': utils.import_class(
