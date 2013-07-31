@@ -556,6 +556,13 @@ class Client(object):
         return self.post(self.route_tables_path, body=body)
 
     @APIParamsCall
+    def update_route_table(self, route_table, body=None):
+        """
+        Updates a route table
+        """
+        return self.put(self.route_table_path % (route_table), body=body)
+
+    @APIParamsCall
     def list_route_tables(self, retrieve_all=True, **_params):
         """
         Fetches a list of all route tables for a tenant
