@@ -18,10 +18,10 @@
 import argparse
 import logging
 
-from quantumclient.quantum import v2_0 as quantumv20
+from neutronclient.neutron import v2_0 as neutronv20
 
 
-class ListRouteTable(quantumv20.ListCommand):
+class ListRouteTable(neutronv20.ListCommand):
     """List route tables that belong to a given tenant."""
 
     resource = 'route_table'
@@ -31,7 +31,7 @@ class ListRouteTable(quantumv20.ListCommand):
     sorting_support = True
 
 
-class ShowRouteTable(quantumv20.ShowCommand):
+class ShowRouteTable(neutronv20.ShowCommand):
     """Show information of a given route table."""
 
     resource = 'route_table'
@@ -39,7 +39,7 @@ class ShowRouteTable(quantumv20.ShowCommand):
     allow_names = True
 
 
-class CreateRouteTable(quantumv20.CreateCommand):
+class CreateRouteTable(neutronv20.CreateCommand):
     """Create a route table."""
 
     resource = 'route_table'
@@ -58,7 +58,7 @@ class CreateRouteTable(quantumv20.CreateCommand):
         return body
 
 
-class DeleteRouteTable(quantumv20.DeleteCommand):
+class DeleteRouteTable(neutronv20.DeleteCommand):
     """Delete a given route table."""
 
     log = logging.getLogger(__name__ + '.DeleteRouteTable')
@@ -66,7 +66,7 @@ class DeleteRouteTable(quantumv20.DeleteCommand):
     allow_names = True
 
 
-class ListNatInstance(quantumv20.ListCommand):
+class ListNatInstance(neutronv20.ListCommand):
     """List nat instances that belong to a given tenant."""
 
     resource = 'nat_instance'
@@ -76,7 +76,7 @@ class ListNatInstance(quantumv20.ListCommand):
     sorting_support = True
 
 
-class ShowNatInstance(quantumv20.ShowCommand):
+class ShowNatInstance(neutronv20.ShowCommand):
     """Show information of a given nat instance."""
 
     resource = 'nat_instance'
@@ -84,7 +84,7 @@ class ShowNatInstance(quantumv20.ShowCommand):
     allow_names = True
 
 
-class CreateNatInstance(quantumv20.CreateCommand):
+class CreateNatInstance(neutronv20.CreateCommand):
     """Create a nat instance."""
 
     resource = 'nat_instance'
@@ -115,7 +115,7 @@ class CreateNatInstance(quantumv20.CreateCommand):
         return body
 
 
-class DeleteNatInstance(quantumv20.DeleteCommand):
+class DeleteNatInstance(neutronv20.DeleteCommand):
     """Delete a given nat instance."""
 
     log = logging.getLogger(__name__ + '.DeleteNatInstance')

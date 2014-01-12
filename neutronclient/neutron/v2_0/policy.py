@@ -1,11 +1,11 @@
 import argparse
 import logging
 
-from quantumclient.quantum.v2_0 import CreateCommand
-from quantumclient.quantum.v2_0 import DeleteCommand
-from quantumclient.quantum.v2_0 import ListCommand
-from quantumclient.quantum.v2_0 import UpdateCommand
-from quantumclient.quantum.v2_0 import ShowCommand
+from neutronclient.neutron.v2_0 import CreateCommand
+from neutronclient.neutron.v2_0 import DeleteCommand
+from neutronclient.neutron.v2_0 import ListCommand
+from neutronclient.neutron.v2_0 import UpdateCommand
+from neutronclient.neutron.v2_0 import ShowCommand
 
 
 class ListPolicy(ListCommand):

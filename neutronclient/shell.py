@@ -57,6 +57,10 @@ from neutronclient.neutron.v2_0.vpn import ikepolicy
 from neutronclient.neutron.v2_0.vpn import ipsec_site_connection
 from neutronclient.neutron.v2_0.vpn import ipsecpolicy
 from neutronclient.neutron.v2_0.vpn import vpnservice
+from neutronclient.neutron.v2_0 import ipam
+from neutronclient.neutron.v2_0 import policy
+from neutronclient.neutron.v2_0 import vpcroutetable
+
 from neutronclient.openstack.common import strutils
 from neutronclient.version import __version__
 
@@ -93,7 +97,6 @@ def env(*_vars, **kwargs):
 
 
 COMMAND_V2 = {
-<<<<<<< HEAD:neutronclient/shell.py
     'net-list': network.ListNetwork,
     'net-external-list': network.ListExternalNetwork,
     'net-show': network.ShowNetwork,
@@ -251,7 +254,6 @@ COMMAND_V2 = {
     'vpn-ikepolicy-create': ikepolicy.CreateIKEPolicy,
     'vpn-ikepolicy-update': ikepolicy.UpdateIKEPolicy,
     'vpn-ikepolicy-delete': ikepolicy.DeleteIKEPolicy,
-=======
     'ipam-list': ipam.ListIpam,
     'ipam-show': ipam.ShowIpam,
     'ipam-create': ipam.CreateIpam,
@@ -270,7 +272,6 @@ COMMAND_V2 = {
     'route-table-show': vpcroutetable.ShowRouteTable,
     'route-table-create': vpcroutetable.CreateRouteTable,
     'route-table-delete': vpcroutetable.DeleteRouteTable,
->>>>>>> upstream/master:quantumclient/shell.py
 }
 
 COMMANDS = {'2.0': COMMAND_V2}
