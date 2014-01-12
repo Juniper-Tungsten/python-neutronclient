@@ -93,6 +93,7 @@ def env(*_vars, **kwargs):
 
 
 COMMAND_V2 = {
+<<<<<<< HEAD:neutronclient/shell.py
     'net-list': network.ListNetwork,
     'net-external-list': network.ListExternalNetwork,
     'net-show': network.ShowNetwork,
@@ -250,6 +251,26 @@ COMMAND_V2 = {
     'vpn-ikepolicy-create': ikepolicy.CreateIKEPolicy,
     'vpn-ikepolicy-update': ikepolicy.UpdateIKEPolicy,
     'vpn-ikepolicy-delete': ikepolicy.DeleteIKEPolicy,
+=======
+    'ipam-list': ipam.ListIpam,
+    'ipam-show': ipam.ShowIpam,
+    'ipam-create': ipam.CreateIpam,
+    'ipam-delete': ipam.DeleteIpam,
+    'ipam-update': ipam.UpdateIpam,
+    'policy-list': policy.ListPolicy,
+    'policy-show': policy.ShowPolicy,
+    'policy-create': policy.CreatePolicy,
+    'policy-delete': policy.DeletePolicy,
+    'policy-update': policy.UpdatePolicy,
+    'nat-instance-list': vpcroutetable.ListNatInstance,
+    'nat-instance-show': vpcroutetable.ShowNatInstance,
+    'nat-instance-create': vpcroutetable.CreateNatInstance,
+    'nat-instance-delete': vpcroutetable.DeleteNatInstance,
+    'route-table-list': vpcroutetable.ListRouteTable,
+    'route-table-show': vpcroutetable.ShowRouteTable,
+    'route-table-create': vpcroutetable.CreateRouteTable,
+    'route-table-delete': vpcroutetable.DeleteRouteTable,
+>>>>>>> upstream/master:quantumclient/shell.py
 }
 
 COMMANDS = {'2.0': COMMAND_V2}
