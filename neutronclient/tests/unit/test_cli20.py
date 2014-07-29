@@ -13,13 +13,16 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
 
 import urllib
 
+import contextlib
+import cStringIO
 import fixtures
-import mox
-import testtools
+from mox3 import mox
+from oslotest import base
+import requests
+import sys
 
 from neutronclient.common import constants
 from neutronclient.common import exceptions
@@ -31,6 +34,17 @@ API_VERSION = "2.0"
 FORMAT = 'json'
 TOKEN = 'testtoken'
 ENDURL = 'localurl'
+
+
+@contextlib.contextmanager
+def capture_std_streams():
+    fake_stdout, fake_stderr = cStringIO.StringIO(), cStringIO.StringIO()
+    stdout, stderr = sys.stdout, sys.stderr
+    try:
+        sys.stdout, sys.stderr = fake_stdout, fake_stderr
+        yield fake_stdout, fake_stderr
+    finally:
+        sys.stdout, sys.stderr = stdout, stderr
 
 
 class FakeStdout:
@@ -49,8 +63,10 @@ class FakeStdout:
 
 
 class MyResp(object):
-    def __init__(self, status):
-        self.status = status
+    def __init__(self, status_code, headers=None, reason=None):
+        self.status_code = status_code
+        self.headers = headers or {}
+        self.reason = reason
 
 
 class MyApp(object):
@@ -140,7 +156,7 @@ class MyComparator(mox.Comparator):
         return str(self.lhs)
 
 
-class CLITestV20Base(testtools.TestCase):
+class CLITestV20Base(base.BaseTestCase):
 
     format = 'json'
     test_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
@@ -191,10 +207,11 @@ class CLITestV20Base(testtools.TestCase):
         cmd.get_client().MultipleTimes().AndReturn(self.client)
         non_admin_status_resources = ['subnet', 'floatingip', 'security_group',
                                       'security_group_rule', 'qos_queue',
-                                      'network_gateway', 'credential',
-                                      'network_profile', 'policy_profile',
-                                      'ikepolicy', 'ipsecpolicy',
-                                      'metering_label', 'metering_label_rule']
+                                      'network_gateway', 'gateway_device',
+                                      'credential', 'network_profile',
+                                      'policy_profile', 'ikepolicy',
+                                      'ipsecpolicy', 'metering_label',
+                                      'metering_label_rule', 'net_partition']
         if (resource in non_admin_status_resources):
             body = {resource: {}, }
         else:
@@ -237,9 +254,9 @@ class CLITestV20Base(testtools.TestCase):
         self.mox.VerifyAll()
         self.mox.UnsetStubs()
         _str = self.fake_stdout.make_string()
-        self.assertTrue(myid in _str)
+        self.assertIn(myid, _str)
         if name:
-            self.assertTrue(name in _str)
+            self.assertIn(name, _str)
 
     def _test_list_columns(self, cmd, resources_collection,
                            resources_out, args=['-f', 'json']):
@@ -355,7 +372,7 @@ class CLITestV20Base(testtools.TestCase):
         self.mox.UnsetStubs()
         _str = self.fake_stdout.make_string()
         if response_contents is None:
-            self.assertTrue('myid1' in _str)
+            self.assertIn('myid1', _str)
         return _str
 
     def _test_list_resources_with_pagination(self, resources, cmd):
@@ -417,7 +434,7 @@ class CLITestV20Base(testtools.TestCase):
         self.mox.VerifyAll()
         self.mox.UnsetStubs()
         _str = self.fake_stdout.make_string()
-        self.assertTrue(myid in _str)
+        self.assertIn(myid, _str)
 
     def _test_show_resource(self, resource, cmd, myid, args, fields=[]):
         self.mox.StubOutWithMock(cmd, "get_client")
@@ -442,8 +459,8 @@ class CLITestV20Base(testtools.TestCase):
         self.mox.VerifyAll()
         self.mox.UnsetStubs()
         _str = self.fake_stdout.make_string()
-        self.assertTrue(myid in _str)
-        self.assertTrue('myname' in _str)
+        self.assertIn(myid, _str)
+        self.assertIn('myname', _str)
 
     def _test_delete_resource(self, resource, cmd, myid, args):
         self.mox.StubOutWithMock(cmd, "get_client")
@@ -462,7 +479,7 @@ class CLITestV20Base(testtools.TestCase):
         self.mox.VerifyAll()
         self.mox.UnsetStubs()
         _str = self.fake_stdout.make_string()
-        self.assertTrue(myid in _str)
+        self.assertIn(myid, _str)
 
     def _test_update_resource_action(self, resource, cmd, myid, action, args,
                                      body, retval=None):
@@ -483,11 +500,11 @@ class CLITestV20Base(testtools.TestCase):
         self.mox.VerifyAll()
         self.mox.UnsetStubs()
         _str = self.fake_stdout.make_string()
-        self.assertTrue(myid in _str)
+        self.assertIn(myid, _str)
 
 
-class ClientV2UnicodeTestJson(CLITestV20Base):
-    def test_do_request(self):
+class ClientV2TestJson(CLITestV20Base):
+    def test_do_request_unicode(self):
         self.client.format = self.format
         self.mox.StubOutWithMock(self.client.httpclient, "request")
         unicode_text = u'\u7f51\u7edc'
@@ -521,20 +538,171 @@ class ClientV2UnicodeTestJson(CLITestV20Base):
         # test response with unicode
         self.assertEqual(res_body, body)
 
+    def test_do_request_error_without_response_body(self):
+        self.client.format = self.format
+        self.mox.StubOutWithMock(self.client.httpclient, "request")
+        params = {'test': 'value'}
+        expect_query = urllib.urlencode(params)
+        self.client.httpclient.auth_token = 'token'
 
-class ClientV2UnicodeTestXML(ClientV2UnicodeTestJson):
+        self.client.httpclient.request(
+            end_url('/test', query=expect_query, format=self.format),
+            'PUT', body='',
+            headers=mox.ContainsKeyValue('X-Auth-Token', 'token')
+        ).AndReturn((MyResp(400, reason='An error'), ''))
+
+        self.mox.ReplayAll()
+        error = self.assertRaises(exceptions.NeutronClientException,
+                                  self.client.do_request, 'PUT', '/test',
+                                  body='', params=params)
+        self.assertEqual("An error", str(error))
+        self.mox.VerifyAll()
+        self.mox.UnsetStubs()
+
+
+class ClientV2UnicodeTestXML(ClientV2TestJson):
     format = 'xml'
 
 
 class CLITestV20ExceptionHandler(CLITestV20Base):
 
+    def _test_exception_handler_v20(
+        self, expected_exception, status_code, expected_msg,
+        error_type=None, error_msg=None, error_detail=None,
+        error_content=None):
+        if error_content is None:
+            error_content = {'NeutronError': {'type': error_type,
+                                              'message': error_msg,
+                                              'detail': error_detail}}
+
+        e = self.assertRaises(expected_exception,
+                              client.exception_handler_v20,
+                              status_code, error_content)
+        self.assertEqual(status_code, e.status_code)
+
+        if expected_msg is None:
+            if error_detail:
+                expected_msg = '\n'.join([error_msg, error_detail])
+            else:
+                expected_msg = error_msg
+        self.assertEqual(expected_msg, e.message)
+
     def test_exception_handler_v20_ip_address_in_use(self):
-        # Tests that an IpAddressInUse exception from the server is
-        # translated to an IpAddressInUseClient exception in the client.
         err_msg = ('Unable to complete operation for network '
                    'fake-network-uuid. The IP address fake-ip is in use.')
-        err_data = {'type': 'IpAddressInUse', 'message': err_msg, 'detail': ''}
-        error_content = {'NeutronError': err_data}
-        self.assertRaises(exceptions.IpAddressInUseClient,
-                          client.exception_handler_v20,
-                          409, error_content)
+        self._test_exception_handler_v20(
+            exceptions.IpAddressInUseClient, 409, err_msg,
+            'IpAddressInUse', err_msg, '')
+
+    def test_exception_handler_v20_neutron_known_error(self):
+        known_error_map = [
+            ('NetworkNotFound', exceptions.NetworkNotFoundClient, 404),
+            ('PortNotFound', exceptions.PortNotFoundClient, 404),
+            ('NetworkInUse', exceptions.NetworkInUseClient, 409),
+            ('PortInUse', exceptions.PortInUseClient, 409),
+            ('StateInvalid', exceptions.StateInvalidClient, 400),
+            ('IpAddressInUse', exceptions.IpAddressInUseClient, 409),
+            ('IpAddressGenerationFailure',
+             exceptions.IpAddressGenerationFailureClient, 409),
+            ('MacAddressInUse', exceptions.MacAddressInUseClient, 409),
+            ('ExternalIpAddressExhausted',
+             exceptions.ExternalIpAddressExhaustedClient, 400),
+            ('OverQuota', exceptions.OverQuotaClient, 409),
+        ]
+
+        error_msg = 'dummy exception message'
+        error_detail = 'sample detail'
+        for server_exc, client_exc, status_code in known_error_map:
+            self._test_exception_handler_v20(
+                client_exc, status_code,
+                error_msg + '\n' + error_detail,
+                server_exc, error_msg, error_detail)
+
+    def test_exception_handler_v20_neutron_known_error_without_detail(self):
+        error_msg = 'Network not found'
+        error_detail = ''
+        self._test_exception_handler_v20(
+            exceptions.NetworkNotFoundClient, 404,
+            error_msg,
+            'NetworkNotFound', error_msg, error_detail)
+
+    def test_exception_handler_v20_unknown_error_to_per_code_exception(self):
+        for status_code, client_exc in exceptions.HTTP_EXCEPTION_MAP.items():
+            error_msg = 'Unknown error'
+            error_detail = 'This is detail'
+            self._test_exception_handler_v20(
+                client_exc, status_code,
+                error_msg + '\n' + error_detail,
+                'UnknownError', error_msg, error_detail)
+
+    def test_exception_handler_v20_neutron_unknown_status_code(self):
+        error_msg = 'Unknown error'
+        error_detail = 'This is detail'
+        self._test_exception_handler_v20(
+            exceptions.NeutronClientException, 501,
+            error_msg + '\n' + error_detail,
+            'UnknownError', error_msg, error_detail)
+
+    def test_exception_handler_v20_bad_neutron_error(self):
+        error_content = {'NeutronError': {'unknown_key': 'UNKNOWN'}}
+        self._test_exception_handler_v20(
+            exceptions.NeutronClientException, 500,
+            expected_msg={'unknown_key': 'UNKNOWN'},
+            error_content=error_content)
+
+    def test_exception_handler_v20_error_dict_contains_message(self):
+        error_content = {'message': 'This is an error message'}
+        self._test_exception_handler_v20(
+            exceptions.NeutronClientException, 500,
+            expected_msg='This is an error message',
+            error_content=error_content)
+
+    def test_exception_handler_v20_error_dict_not_contain_message(self):
+        error_content = {'error': 'This is an error message'}
+        expected_msg = '%s-%s' % (500, error_content)
+        self._test_exception_handler_v20(
+            exceptions.NeutronClientException, 500,
+            expected_msg=expected_msg,
+            error_content=error_content)
+
+    def test_exception_handler_v20_default_fallback(self):
+        error_content = 'This is an error message'
+        expected_msg = '%s-%s' % (500, error_content)
+        self._test_exception_handler_v20(
+            exceptions.NeutronClientException, 500,
+            expected_msg=expected_msg,
+            error_content=error_content)
+
+    def test_exception_status(self):
+        e = exceptions.BadRequest()
+        self.assertEqual(e.status_code, 400)
+
+        e = exceptions.BadRequest(status_code=499)
+        self.assertEqual(e.status_code, 499)
+
+        # SslCertificateValidationError has no explicit status_code,
+        # but should have a 'safe' defined fallback.
+        e = exceptions.SslCertificateValidationError()
+        self.assertIsNotNone(e.status_code)
+
+        e = exceptions.SslCertificateValidationError(status_code=599)
+        self.assertEqual(e.status_code, 599)
+
+    def test_connection_failed(self):
+        self.mox.StubOutWithMock(self.client.httpclient, 'request')
+        self.client.httpclient.auth_token = 'token'
+
+        self.client.httpclient.request(
+            end_url('/test'), 'GET',
+            headers=mox.ContainsKeyValue('X-Auth-Token', 'token')
+        ).AndRaise(requests.exceptions.ConnectionError('Connection refused'))
+
+        self.mox.ReplayAll()
+
+        error = self.assertRaises(exceptions.ConnectionFailed,
+                                  self.client.get, '/test')
+        # NB: ConnectionFailed has no explicit status_code, so this
+        # tests that there is a fallback defined.
+        self.assertIsNotNone(error.status_code)
+        self.mox.VerifyAll()
+        self.mox.UnsetStubs()

@@ -13,7 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
+
+from __future__ import print_function
 
 import argparse
 import logging
@@ -37,7 +38,7 @@ class ListRouter(neutronV20.ListCommand):
     resource = 'router'
     log = logging.getLogger(__name__ + '.ListRouter')
     _formatters = {'external_gateway_info': _format_external_gateway_info, }
-    list_columns = ['id', 'name', 'external_gateway_info']
+    list_columns = ['id', 'name', 'external_gateway_info', 'distributed']
     pagination_support = True
     sorting_support = True
 
@@ -60,17 +61,17 @@ class CreateRouter(neutronV20.CreateCommand):
         parser.add_argument(
             '--admin-state-down',
             dest='admin_state', action='store_false',
-            help=_('Set Admin State Up to false'))
+            help=_('Set admin state up to false.'))
         parser.add_argument(
             '--admin_state_down',
             dest='admin_state', action='store_false',
             help=argparse.SUPPRESS)
         parser.add_argument(
             'name', metavar='NAME',
-            help=_('Name of router to create'))
+            help=_('Name of router to create.'))
         parser.add_argument(
             'distributed', action='store_true',
-            help=_('Create a distributed router (Nicira plugin only)'))
+            help=_('Create a distributed router.'))
 
     def args2body(self, parsed_args):
         body = {'router': {
@@ -111,13 +112,13 @@ class RouterInterfaceCommand(neutronV20.NeutronCommand):
         parser = super(RouterInterfaceCommand, self).get_parser(prog_name)
         parser.add_argument(
             'router_id', metavar='router-id',
-            help=_('ID of the router'))
+            help=_('ID of the router.'))
         parser.add_argument(
             'interface', metavar='INTERFACE',
             help=_('The format is "SUBNET|subnet=SUBNET|port=PORT". '
             'Either a subnet or port must be specified. '
             'Both ID and name are accepted as SUBNET or PORT. '
-            'Note that "subnet=" can be omitted when specifying subnet.'))
+            'Note that "subnet=" can be omitted when specifying a subnet.'))
         return parser
 
     def run(self, parsed_args):
@@ -142,8 +143,8 @@ class RouterInterfaceCommand(neutronV20.NeutronCommand):
         body = {'%s_id' % resource: _interface_id}
 
         portinfo = self.call_api(neutron_client, _router_id, body)
-        print >>self.app.stdout, self.success_message(parsed_args.router_id,
-                                                      portinfo)
+        print(self.success_message(parsed_args.router_id, portinfo),
+              file=self.app.stdout)
 
 
 class AddInterfaceRouter(RouterInterfaceCommand):
@@ -183,13 +184,13 @@ class SetGatewayRouter(neutronV20.NeutronCommand):
         parser = super(SetGatewayRouter, self).get_parser(prog_name)
         parser.add_argument(
             'router_id', metavar='router-id',
-            help=_('ID of the router'))
+            help=_('ID of the router.'))
         parser.add_argument(
             'external_network_id', metavar='external-network-id',
-            help=_('ID of the external network for the gateway'))
+            help=_('ID of the external network for the gateway.'))
         parser.add_argument(
             '--disable-snat', action='store_true',
-            help=_('Disable Source NAT on the router gateway'))
+            help=_('Disable source NAT on the router gateway.'))
         return parser
 
     def run(self, parsed_args):
@@ -204,8 +205,8 @@ class SetGatewayRouter(neutronV20.NeutronCommand):
         if parsed_args.disable_snat:
             router_dict['enable_snat'] = False
         neutron_client.add_gateway_router(_router_id, router_dict)
-        print >>self.app.stdout, (
-            _('Set gateway for router %s') % parsed_args.router_id)
+        print(_('Set gateway for router %s') % parsed_args.router_id,
+              file=self.app.stdout)
 
 
 class RemoveGatewayRouter(neutronV20.NeutronCommand):
@@ -219,7 +220,7 @@ class RemoveGatewayRouter(neutronV20.NeutronCommand):
         parser = super(RemoveGatewayRouter, self).get_parser(prog_name)
         parser.add_argument(
             'router_id', metavar='router-id',
-            help=_('ID of the router'))
+            help=_('ID of the router.'))
         return parser
 
     def run(self, parsed_args):
@@ -229,5 +230,5 @@ class RemoveGatewayRouter(neutronV20.NeutronCommand):
         _router_id = neutronV20.find_resourceid_by_name_or_id(
             neutron_client, self.resource, parsed_args.router_id)
         neutron_client.remove_gateway_router(_router_id)
-        print >>self.app.stdout, (
-            _('Removed gateway from router %s') % parsed_args.router_id)
+        print(_('Removed gateway from router %s') % parsed_args.router_id,
+              file=self.app.stdout)

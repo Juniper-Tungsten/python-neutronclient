@@ -12,10 +12,8 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
 
-import httplib2
-import mox
+from mox3 import mox
 import testtools
 
 from neutronclient.client import HTTPClient
@@ -34,13 +32,13 @@ class TestHTTPClient(testtools.TestCase):
         super(TestHTTPClient, self).setUp()
 
         self.mox = mox.Mox()
-        self.mox.StubOutWithMock(httplib2.Http, 'request')
+        self.mox.StubOutWithMock(HTTPClient, 'request')
         self.addCleanup(self.mox.UnsetStubs)
 
         self.http = HTTPClient(token=AUTH_TOKEN, endpoint_url=END_URL)
 
     def test_request_error(self):
-        httplib2.Http.request(
+        HTTPClient.request(
             URL, METHOD, headers=mox.IgnoreArg()
         ).AndRaise(Exception('error msg'))
         self.mox.ReplayAll()
@@ -55,7 +53,29 @@ class TestHTTPClient(testtools.TestCase):
     def test_request_success(self):
         rv_should_be = MyResp(200), 'test content'
 
-        httplib2.Http.request(
+        HTTPClient.request(
+            URL, METHOD, headers=mox.IgnoreArg()
+        ).AndReturn(rv_should_be)
+        self.mox.ReplayAll()
+
+        self.assertEqual(rv_should_be, self.http._cs_request(URL, METHOD))
+        self.mox.VerifyAll()
+
+    def test_request_unauthorized(self):
+        rv_should_be = MyResp(401), 'unauthorized message'
+        HTTPClient.request(
+            URL, METHOD, headers=mox.IgnoreArg()
+        ).AndReturn(rv_should_be)
+        self.mox.ReplayAll()
+
+        e = self.assertRaises(exceptions.Unauthorized,
+                              self.http._cs_request, URL, METHOD)
+        self.assertEqual('unauthorized message', e.message)
+        self.mox.VerifyAll()
+
+    def test_request_forbidden_is_returned_to_caller(self):
+        rv_should_be = MyResp(403), 'forbidden message'
+        HTTPClient.request(
             URL, METHOD, headers=mox.IgnoreArg()
         ).AndReturn(rv_should_be)
         self.mox.ReplayAll()

@@ -13,11 +13,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
 
 import sys
 
-import mox
+from mox3 import mox
 
 from neutronclient.neutron.v2_0 import port
 from neutronclient import shell
@@ -60,7 +59,6 @@ class CLITestV20PortJSON(test_cli20.CLITestV20Base):
             args += ['--extra-dhcp-opt',
                      ('opt_name=%(opt_name)s,opt_value=%(opt_value)s' %
                       dhcp_opt)]
-        print args
         position_names = ['network_id', 'extra_dhcp_opts']
         position_values = [netid, extra_dhcp_opts]
         position_values.extend([netid])
@@ -287,7 +285,7 @@ class CLITestV20PortJSON(test_cli20.CLITestV20Base):
         self.mox.UnsetStubs()
         _str = self.fake_stdout.make_string()
 
-        self.assertTrue('myid1' in _str)
+        self.assertIn('myid1', _str)
 
     def test_list_router_ports(self):
         """List router ports: -D."""
@@ -360,6 +358,28 @@ class CLITestV20PortJSON(test_cli20.CLITestV20Base):
                 ]
         updatedfields = {'extra_dhcp_opts': [{'opt_name': 'bootfile-name',
                                               'opt_value': 'pxelinux.0'},
+                                             {'opt_name': 'tftp-server',
+                                              'opt_value': '123.123.123.123'},
+                                             {'opt_name': 'server-ip-address',
+                                              'opt_value': '123.123.123.45'}]}
+        cmd = port.UpdatePort(test_cli20.MyApp(sys.stdout), None)
+        self._test_update_resource(resource, cmd, myid, args, updatedfields)
+
+    def test_delete_extra_dhcp_opts_from_port(self):
+        resource = 'port'
+        myid = 'myid'
+        args = [myid,
+                '--extra-dhcp-opt',
+                "opt_name=bootfile-name,opt_value=null",
+                '--extra-dhcp-opt',
+                "opt_name=tftp-server,opt_value=123.123.123.123",
+                '--extra-dhcp-opt',
+                "opt_name=server-ip-address,opt_value=123.123.123.45"
+                ]
+        # the client code will change the null to None and send to server,
+        # where its interpreted as delete the DHCP option on the port.
+        updatedfields = {'extra_dhcp_opts': [{'opt_name': 'bootfile-name',
+                                             'opt_value': None},
                                              {'opt_name': 'tftp-server',
                                               'opt_value': '123.123.123.123'},
                                              {'opt_name': 'server-ip-address',

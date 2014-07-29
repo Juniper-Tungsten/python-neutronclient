@@ -15,11 +15,10 @@
 #
 # @author: KC Wang, Big Switch Networks Inc.
 #
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
 
 import sys
 
-import mox
+from mox3 import mox
 
 from neutronclient.neutron.v2_0.fw import firewallpolicy
 from neutronclient import shell

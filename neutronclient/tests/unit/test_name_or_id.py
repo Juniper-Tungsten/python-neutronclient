@@ -13,11 +13,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
 
 import uuid
 
-import mox
+from mox3 import mox
 import testtools
 
 from neutronclient.common import exceptions
@@ -110,7 +109,7 @@ class CLITestNameorID(testtools.TestCase):
             neutronV20.find_resourceid_by_name_or_id(
                 self.client, 'network', name)
         except exceptions.NeutronClientNoUniqueMatch as ex:
-            self.assertTrue('Multiple' in ex.message)
+            self.assertIn('Multiple', ex.message)
 
     def test_get_id_from_name_notfound(self):
         name = 'myname'
@@ -128,5 +127,5 @@ class CLITestNameorID(testtools.TestCase):
             neutronV20.find_resourceid_by_name_or_id(
                 self.client, 'network', name)
         except exceptions.NeutronClientException as ex:
-            self.assertTrue('Unable to find' in ex.message)
+            self.assertIn('Unable to find', ex.message)
             self.assertEqual(404, ex.status_code)

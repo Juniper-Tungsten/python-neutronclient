@@ -13,7 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
+
+from __future__ import print_function
 
 import argparse
 import logging
@@ -90,7 +91,7 @@ def find_resourceid_by_name_or_id(client, resource, name_or_id):
 def add_show_list_common_argument(parser):
     parser.add_argument(
         '-D', '--show-details',
-        help=_('Show detailed info'),
+        help=_('Show detailed information.'),
         action='store_true',
         default=False, )
     parser.add_argument(
@@ -105,8 +106,8 @@ def add_show_list_common_argument(parser):
     parser.add_argument(
         '-F', '--field',
         dest='fields', metavar='FIELD',
-        help=_('Specify the field(s) to be returned by server,'
-               ' can be repeated'),
+        help=_('Specify the field(s) to be returned by server. You can '
+               'repeat this option.'),
         action='append',
         default=[])
 
@@ -116,7 +117,7 @@ def add_pagination_argument(parser):
         '-P', '--page-size',
         dest='page_size', metavar='SIZE', type=int,
         help=_("Specify retrieve unit of each request, then split one request "
-               "to several requests"),
+               "to several requests."),
         default=None)
 
 
@@ -125,16 +126,17 @@ def add_sorting_argument(parser):
         '--sort-key',
         dest='sort_key', metavar='FIELD',
         action='append',
-        help=_("Sort list by specified fields (This option can be repeated), "
-               "The number of sort_dir and sort_key should match each other, "
-               "more sort_dir specified will be omitted, less will be filled "
-               "with asc as default direction "),
+        help=_("Sorts the list by the specified fields in the specified "
+               "directions. You can repeat this option, but you must "
+               "specify an equal number of sort_dir and sort_key values. "
+               "Extra sort_dir options are ignored. Missing sort_dir options "
+               "use the default asc value."),
         default=[])
     parser.add_argument(
         '--sort-dir',
         dest='sort_dir', metavar='{asc,desc}',
-        help=_("Sort list in specified directions "
-               "(This option can be repeated)"),
+        help=_("Sorts the list in the specified direction. You can repeat "
+               "this option."),
         action='append',
         default=[],
         choices=['asc', 'desc'])
@@ -341,8 +343,11 @@ class NeutronCommand(command.OpenStackCommand):
 
     def __init__(self, app, app_args):
         super(NeutronCommand, self).__init__(app, app_args)
-        if hasattr(self, 'formatters'):
-            self.formatters['table'] = TableFormater()
+        # NOTE(markmcclain): This is no longer supported in cliff version 1.5.2
+        # see https://bugs.launchpad.net/python-neutronclient/+bug/1265926
+
+        #if hasattr(self, 'formatters'):
+            #self.formatters['table'] = TableFormater()
 
     def get_client(self):
         return self.app.client_manager.neutron
@@ -351,7 +356,7 @@ class NeutronCommand(command.OpenStackCommand):
         parser = super(NeutronCommand, self).get_parser(prog_name)
         parser.add_argument(
             '--request-format',
-            help=_('The xml or json request format'),
+            help=_('The XML or JSON request format.'),
             default='json',
             choices=['json', 'xml', ], )
         parser.add_argument(
@@ -396,7 +401,7 @@ class CreateCommand(NeutronCommand, show.ShowOne):
         parser = super(CreateCommand, self).get_parser(prog_name)
         parser.add_argument(
             '--tenant-id', metavar='TENANT_ID',
-            help=_('The owner tenant ID'), )
+            help=_('The owner tenant ID.'), )
         parser.add_argument(
             '--tenant_id',
             help=argparse.SUPPRESS)
@@ -416,10 +421,10 @@ class CreateCommand(NeutronCommand, show.ShowOne):
                               "create_%s" % self.resource)
         data = obj_creator(body)
         self.format_output_data(data)
-        # {u'network': {u'id': u'e9424a76-6db4-4c93-97b6-ec311cd51f19'}}
         info = self.resource in data and data[self.resource] or None
         if info:
-            print >>self.app.stdout, _('Created a new %s:') % self.resource
+            print(_('Created a new %s:') % self.resource,
+                  file=self.app.stdout)
         else:
             info = {'': ''}
         return zip(*sorted(info.iteritems()))
@@ -438,7 +443,7 @@ class UpdateCommand(NeutronCommand):
         parser = super(UpdateCommand, self).get_parser(prog_name)
         parser.add_argument(
             'id', metavar=self.resource.upper(),
-            help=_('ID or name of %s to update') % self.resource)
+            help=_('ID or name of %s to update.') % self.resource)
         self.add_known_arguments(parser)
         return parser
 
@@ -466,9 +471,9 @@ class UpdateCommand(NeutronCommand):
         obj_updator = getattr(neutron_client,
                               "update_%s" % self.resource)
         obj_updator(_id, body)
-        print >>self.app.stdout, (
-            _('Updated %(resource)s: %(id)s') %
-            {'id': parsed_args.id, 'resource': self.resource})
+        print((_('Updated %(resource)s: %(id)s') %
+               {'id': parsed_args.id, 'resource': self.resource}),
+              file=self.app.stdout)
         return
 
 
@@ -485,9 +490,9 @@ class DeleteCommand(NeutronCommand):
     def get_parser(self, prog_name):
         parser = super(DeleteCommand, self).get_parser(prog_name)
         if self.allow_names:
-            help_str = _('ID or name of %s to delete')
+            help_str = _('ID or name of %s to delete.')
         else:
-            help_str = _('ID of %s to delete')
+            help_str = _('ID of %s to delete.')
         parser.add_argument(
             'id', metavar=self.resource.upper(),
             help=help_str % self.resource)
@@ -505,9 +510,10 @@ class DeleteCommand(NeutronCommand):
         else:
             _id = parsed_args.id
         obj_deleter(_id)
-        print >>self.app.stdout, (_('Deleted %(resource)s: %(id)s')
-                                  % {'id': parsed_args.id,
-                                     'resource': self.resource})
+        print((_('Deleted %(resource)s: %(id)s')
+               % {'id': parsed_args.id,
+                  'resource': self.resource}),
+              file=self.app.stdout)
         return
 
 
@@ -624,9 +630,9 @@ class ShowCommand(NeutronCommand, show.ShowOne):
         parser = super(ShowCommand, self).get_parser(prog_name)
         add_show_list_common_argument(parser)
         if self.allow_names:
-            help_str = _('ID or name of %s to look up')
+            help_str = _('ID or name of %s to look up.')
         else:
-            help_str = _('ID of %s to look up')
+            help_str = _('ID of %s to look up.')
         parser.add_argument(
             'id', metavar=self.resource.upper(),
             help=help_str % self.resource)

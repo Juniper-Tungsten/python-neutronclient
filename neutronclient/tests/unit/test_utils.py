@@ -12,7 +12,6 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
 
 import datetime
 import sys
@@ -36,6 +35,14 @@ class TestUtils(testtools.TestCase):
     def test_string_to_dictionary(self):
         input_str = 'key1=value1,key2=value2'
         expected = {'key1': 'value1', 'key2': 'value2'}
+        self.assertEqual(expected, utils.str2dict(input_str))
+
+    def test_none_string_to_dictionary(self):
+        input_str = ''
+        expected = {}
+        self.assertEqual(expected, utils.str2dict(input_str))
+        input_str = None
+        expected = {}
         self.assertEqual(expected, utils.str2dict(input_str))
 
     def test_get_dict_item_properties(self):

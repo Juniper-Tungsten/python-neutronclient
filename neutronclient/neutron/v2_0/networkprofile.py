@@ -1,5 +1,3 @@
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
-#
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
 #    a copy of the License at
@@ -15,6 +13,8 @@
 #@author Abhishek Raut, Cisco Systems
 #@author Sergey Sudakovich, Cisco Systems
 #@author Rudrajit Tapadar, Cisco Systems
+
+from __future__ import print_function
 
 import logging
 
@@ -53,23 +53,23 @@ class CreateNetworkProfile(neutronV20.CreateCommand):
 
     def add_known_arguments(self, parser):
         parser.add_argument('name',
-                            help=_('Name for Network Profile'))
+                            help=_('Name for network profile.'))
         parser.add_argument('segment_type',
                             choices=SEGMENT_TYPE_CHOICES,
-                            help='Segment type')
+                            help='Segment type.')
         # TODO(Abhishek): Check on sub-type choices depending on segment_type
         parser.add_argument('--sub_type',
                             help=_('Sub-type for the segment. Available sub-'
                             'types for overlay segments: native, enhanced; '
                             'For trunk segments: vlan, overlay.'))
         parser.add_argument('--segment_range',
-                            help=_('Range for the Segment'))
+                            help=_('Range for the segment.'))
         parser.add_argument('--physical_network',
-                            help=_('Name for the Physical Network'))
+                            help=_('Name for the physical network.'))
         parser.add_argument('--multicast_ip_range',
-                            help=_('Multicast IPv4 Range'))
+                            help=_('Multicast IPv4 range.'))
         parser.add_argument("--add-tenant",
-                            help=_("Add tenant to the network profile"))
+                            help=_("Add tenant to the network profile."))
 
     def args2body(self, parsed_args):
         body = {'network_profile': {'name': parsed_args.name}}
@@ -118,7 +118,7 @@ class UpdateNetworkProfileV2(neutronV20.NeutronCommand):
     def get_parser(self, prog_name):
         parser = super(UpdateNetworkProfileV2, self).get_parser(prog_name)
         parser.add_argument("--remove-tenant",
-                            help="Remove tenant from the network profile")
+                            help="Remove tenant from the network profile.")
         return parser
 
     def run(self, parsed_args):
@@ -130,7 +130,7 @@ class UpdateNetworkProfileV2(neutronV20.NeutronCommand):
             data[self.resource]['remove_tenant'] = parsed_args.remove_tenant
         neutron_client.update_network_profile(parsed_args.id,
                                               {self.resource: data})
-        print >>self.app.stdout, (
-            _('Updated %(resource)s: %(id)s') %
-            {'id': parsed_args.id, 'resource': self.resource})
+        print((_('Updated %(resource)s: %(id)s') %
+               {'id': parsed_args.id, 'resource': self.resource}),
+              file=self.app.stdout)
         return

@@ -12,11 +12,10 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
 
 import fixtures
-import httplib2
-import mox
+from mox3 import mox
+import requests
 import testtools
 
 from neutronclient.client import HTTPClient
@@ -52,6 +51,7 @@ class TestSSL(testtools.TestCase):
             api_version=mox.IgnoreArg(),
             auth_strategy=mox.IgnoreArg(),
             auth_url=mox.IgnoreArg(),
+            service_type=mox.IgnoreArg(),
             endpoint_type=mox.IgnoreArg(),
             insecure=mox.IgnoreArg(),
             password=mox.IgnoreArg(),
@@ -61,7 +61,9 @@ class TestSSL(testtools.TestCase):
             token=mox.IgnoreArg(),
             url=mox.IgnoreArg(),
             username=mox.IgnoreArg(),
+            user_id=mox.IgnoreArg(),
             log_credentials=mox.IgnoreArg(),
+            timeout=mox.IgnoreArg(),
         )
         openstack_shell.NeutronShell.interact().AndReturn(0)
         self.mox.ReplayAll()
@@ -81,6 +83,7 @@ class TestSSL(testtools.TestCase):
             api_version=mox.IgnoreArg(),
             auth_strategy=mox.IgnoreArg(),
             auth_url=mox.IgnoreArg(),
+            service_type=mox.IgnoreArg(),
             endpoint_type=mox.IgnoreArg(),
             insecure=mox.IgnoreArg(),
             password=mox.IgnoreArg(),
@@ -90,7 +93,9 @@ class TestSSL(testtools.TestCase):
             token=mox.IgnoreArg(),
             url=mox.IgnoreArg(),
             username=mox.IgnoreArg(),
+            user_id=mox.IgnoreArg(),
             log_credentials=mox.IgnoreArg(),
+            timeout=mox.IgnoreArg(),
         )
         openstack_shell.NeutronShell.interact().AndReturn(0)
         self.mox.ReplayAll()
@@ -125,10 +130,10 @@ class TestSSL(testtools.TestCase):
     def test_proper_exception_is_raised_when_cert_validation_fails(self):
         http = HTTPClient(token=AUTH_TOKEN, endpoint_url=END_URL)
 
-        self.mox.StubOutWithMock(httplib2.Http, 'request')
-        httplib2.Http.request(
+        self.mox.StubOutWithMock(HTTPClient, 'request')
+        HTTPClient.request(
             URL, METHOD, headers=mox.IgnoreArg()
-        ).AndRaise(httplib2.SSLHandshakeError)
+        ).AndRaise(requests.exceptions.SSLError)
         self.mox.ReplayAll()
 
         self.assertRaises(

@@ -13,11 +13,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
 
 """
 Command-line interface to the Neutron APIs
 """
+
+from __future__ import print_function
 
 import argparse
 import logging
@@ -43,10 +44,12 @@ from neutronclient.neutron.v2_0.lb import member as lb_member
 from neutronclient.neutron.v2_0.lb import pool as lb_pool
 from neutronclient.neutron.v2_0.lb import vip as lb_vip
 from neutronclient.neutron.v2_0 import metering
+from neutronclient.neutron.v2_0.nec import packetfilter
+from neutronclient.neutron.v2_0 import netpartition
 from neutronclient.neutron.v2_0 import network
 from neutronclient.neutron.v2_0 import networkprofile
-from neutronclient.neutron.v2_0 import nvp_qos_queue
-from neutronclient.neutron.v2_0 import nvpnetworkgateway
+from neutronclient.neutron.v2_0.nsx import networkgateway
+from neutronclient.neutron.v2_0.nsx import qos_queue
 from neutronclient.neutron.v2_0 import policyprofile
 from neutronclient.neutron.v2_0 import port
 from neutronclient.neutron.v2_0 import quota
@@ -167,21 +170,26 @@ COMMAND_V2 = {
     'lb-healthmonitor-disassociate': (
         lb_healthmonitor.DisassociateHealthMonitor
     ),
-    'queue-create': nvp_qos_queue.CreateQoSQueue,
-    'queue-delete': nvp_qos_queue.DeleteQoSQueue,
-    'queue-show': nvp_qos_queue.ShowQoSQueue,
-    'queue-list': nvp_qos_queue.ListQoSQueue,
+    'queue-create': qos_queue.CreateQoSQueue,
+    'queue-delete': qos_queue.DeleteQoSQueue,
+    'queue-show': qos_queue.ShowQoSQueue,
+    'queue-list': qos_queue.ListQoSQueue,
     'agent-list': agent.ListAgent,
     'agent-show': agent.ShowAgent,
     'agent-delete': agent.DeleteAgent,
     'agent-update': agent.UpdateAgent,
-    'net-gateway-create': nvpnetworkgateway.CreateNetworkGateway,
-    'net-gateway-update': nvpnetworkgateway.UpdateNetworkGateway,
-    'net-gateway-delete': nvpnetworkgateway.DeleteNetworkGateway,
-    'net-gateway-show': nvpnetworkgateway.ShowNetworkGateway,
-    'net-gateway-list': nvpnetworkgateway.ListNetworkGateway,
-    'net-gateway-connect': nvpnetworkgateway.ConnectNetworkGateway,
-    'net-gateway-disconnect': nvpnetworkgateway.DisconnectNetworkGateway,
+    'net-gateway-create': networkgateway.CreateNetworkGateway,
+    'net-gateway-update': networkgateway.UpdateNetworkGateway,
+    'net-gateway-delete': networkgateway.DeleteNetworkGateway,
+    'net-gateway-show': networkgateway.ShowNetworkGateway,
+    'net-gateway-list': networkgateway.ListNetworkGateway,
+    'net-gateway-connect': networkgateway.ConnectNetworkGateway,
+    'net-gateway-disconnect': networkgateway.DisconnectNetworkGateway,
+    'gateway-device-create': networkgateway.CreateGatewayDevice,
+    'gateway-device-update': networkgateway.UpdateGatewayDevice,
+    'gateway-device-delete': networkgateway.DeleteGatewayDevice,
+    'gateway-device-show': networkgateway.ShowGatewayDevice,
+    'gateway-device-list': networkgateway.ListGatewayDevice,
     'dhcp-agent-network-add': agentscheduler.AddNetworkToDhcpAgent,
     'dhcp-agent-network-remove': agentscheduler.RemoveNetworkFromDhcpAgent,
     'net-list-on-dhcp-agent': agentscheduler.ListNetworksOnDhcpAgent,
@@ -260,6 +268,15 @@ COMMAND_V2 = {
     'meter-label-rule-list': metering.ListMeteringLabelRule,
     'meter-label-rule-show': metering.ShowMeteringLabelRule,
     'meter-label-rule-delete': metering.DeleteMeteringLabelRule,
+    'nuage-netpartition-list': netpartition.ListNetPartition,
+    'nuage-netpartition-show': netpartition.ShowNetPartition,
+    'nuage-netpartition-create': netpartition.CreateNetPartition,
+    'nuage-netpartition-delete': netpartition.DeleteNetPartition,
+    'nec-packet-filter-list': packetfilter.ListPacketFilter,
+    'nec-packet-filter-show': packetfilter.ShowPacketFilter,
+    'nec-packet-filter-create': packetfilter.CreatePacketFilter,
+    'nec-packet-filter-update': packetfilter.UpdatePacketFilter,
+    'nec-packet-filter-delete': packetfilter.DeletePacketFilter,
 }
 
 COMMANDS = {'2.0': COMMAND_V2}
@@ -292,6 +309,10 @@ class HelpAction(argparse.Action):
 
 class NeutronShell(app.App):
 
+    # verbose logging levels
+    WARNING_LEVEL = 0
+    INFO_LEVEL = 1
+    DEBUG_LEVEL = 2
     CONSOLE_MESSAGE_FORMAT = '%(message)s'
     DEBUG_MESSAGE_FORMAT = '%(levelname)s: %(name)s %(message)s'
     log = logging.getLogger(__name__)
@@ -329,35 +350,31 @@ class NeutronShell(app.App):
             action='version',
             version=__version__, )
         parser.add_argument(
-            '-v', '--verbose',
+            '-v', '--verbose', '--debug',
             action='count',
             dest='verbose_level',
             default=self.DEFAULT_VERBOSE_LEVEL,
-            help=_('Increase verbosity of output. Can be repeated.'))
+            help=_('Increase verbosity of output and show tracebacks on'
+                   ' errors. You can repeat this option.'))
         parser.add_argument(
             '-q', '--quiet',
             action='store_const',
             dest='verbose_level',
             const=0,
-            help=_('Suppress output except warnings and errors'))
+            help=_('Suppress output except warnings and errors.'))
         parser.add_argument(
             '-h', '--help',
             action=HelpAction,
             nargs=0,
             default=self,  # tricky
-            help=_("Show this help message and exit"))
-        parser.add_argument(
-            '--debug',
-            default=False,
-            action='store_true',
-            help=_('Show tracebacks on errors'))
+            help=_("Show this help message and exit."))
         # Global arguments
         parser.add_argument(
             '--os-auth-strategy', metavar='<auth-strategy>',
             default=env('OS_AUTH_STRATEGY', default='keystone'),
-            help=_('Authentication strategy (Env: OS_AUTH_STRATEGY'
-            ', default keystone). For now, any other value will'
-            ' disable the authentication'))
+            help=_('Authentication strategy, defaults to '
+            'env[OS_AUTH_STRATEGY] or keystone. For now, any '
+            'other value will disable the authentication.'))
         parser.add_argument(
             '--os_auth_strategy',
             help=argparse.SUPPRESS)
@@ -365,7 +382,7 @@ class NeutronShell(app.App):
         parser.add_argument(
             '--os-auth-url', metavar='<auth-url>',
             default=env('OS_AUTH_URL'),
-            help=_('Authentication URL (Env: OS_AUTH_URL)'))
+            help=_('Authentication URL, defaults to env[OS_AUTH_URL].'))
         parser.add_argument(
             '--os_auth_url',
             help=argparse.SUPPRESS)
@@ -373,7 +390,8 @@ class NeutronShell(app.App):
         parser.add_argument(
             '--os-tenant-name', metavar='<auth-tenant-name>',
             default=env('OS_TENANT_NAME'),
-            help=_('Authentication tenant name (Env: OS_TENANT_NAME)'))
+            help=_('Authentication tenant name, defaults to '
+                   'env[OS_TENANT_NAME].'))
         parser.add_argument(
             '--os_tenant_name',
             help=argparse.SUPPRESS)
@@ -381,20 +399,26 @@ class NeutronShell(app.App):
         parser.add_argument(
             '--os-tenant-id', metavar='<auth-tenant-id>',
             default=env('OS_TENANT_ID'),
-            help=_('Authentication tenant name (Env: OS_TENANT_ID)'))
+            help=_('Authentication tenant ID, defaults to '
+                   'env[OS_TENANT_ID].'))
 
         parser.add_argument(
             '--os-username', metavar='<auth-username>',
             default=utils.env('OS_USERNAME'),
-            help=_('Authentication username (Env: OS_USERNAME)'))
+            help=_('Authentication username, defaults to env[OS_USERNAME].'))
         parser.add_argument(
             '--os_username',
             help=argparse.SUPPRESS)
 
         parser.add_argument(
+            '--os-user-id', metavar='<auth-user-id>',
+            default=env('OS_USER_ID'),
+            help=_('Authentication user ID (Env: OS_USER_ID)'))
+
+        parser.add_argument(
             '--os-password', metavar='<auth-password>',
             default=utils.env('OS_PASSWORD'),
-            help=_('Authentication password (Env: OS_PASSWORD)'))
+            help=_('Authentication password, defaults to env[OS_PASSWORD].'))
         parser.add_argument(
             '--os_password',
             help=argparse.SUPPRESS)
@@ -402,7 +426,8 @@ class NeutronShell(app.App):
         parser.add_argument(
             '--os-region-name', metavar='<auth-region-name>',
             default=env('OS_REGION_NAME'),
-            help=_('Authentication region name (Env: OS_REGION_NAME)'))
+            help=_('Authentication region name, defaults to '
+                   'env[OS_REGION_NAME].'))
         parser.add_argument(
             '--os_region_name',
             help=argparse.SUPPRESS)
@@ -410,10 +435,21 @@ class NeutronShell(app.App):
         parser.add_argument(
             '--os-token', metavar='<token>',
             default=env('OS_TOKEN'),
-            help=_('Defaults to env[OS_TOKEN]'))
+            help=_('Authentication token, defaults to env[OS_TOKEN].'))
         parser.add_argument(
             '--os_token',
             help=argparse.SUPPRESS)
+
+        parser.add_argument(
+            '--service-type', metavar='<service-type>',
+            default=env('OS_NETWORK_SERVICE_TYPE', default='network'),
+            help=_('Defaults to env[OS_NETWORK_SERVICE_TYPE] or network.'))
+
+        parser.add_argument(
+            '--timeout', metavar='<seconds>',
+            default=env('OS_NETWORK_TIMEOUT', default=None), type=float,
+            help=_('Timeout in seconds to wait for an HTTP response. Defaults '
+                   'to env[OS_NETWORK_TIMEOUT] or None if not specified.'))
 
         parser.add_argument(
             '--endpoint-type', metavar='<endpoint-type>',
@@ -423,7 +459,7 @@ class NeutronShell(app.App):
         parser.add_argument(
             '--os-url', metavar='<url>',
             default=env('OS_URL'),
-            help=_('Defaults to env[OS_URL]'))
+            help=_('Defaults to env[OS_URL].'))
         parser.add_argument(
             '--os_url',
             help=argparse.SUPPRESS)
@@ -434,7 +470,7 @@ class NeutronShell(app.App):
             default=env('OS_CACERT', default=None),
             help=_("Specify a CA bundle file to use in "
                    "verifying a TLS (https) server certificate. "
-                   "Defaults to env[OS_CACERT]"))
+                   "Defaults to env[OS_CACERT]."))
 
         parser.add_argument(
             '--insecure',
@@ -460,7 +496,7 @@ class NeutronShell(app.App):
             cmd_parser = cmd.get_parser('')
             for option, _action in cmd_parser._option_string_actions.items():
                 options.add(option)
-        print ' '.join(commands | options)
+        print(' '.join(commands | options))
 
     def run(self, argv):
         """Equivalent to the main program for the application.
@@ -496,7 +532,7 @@ class NeutronShell(app.App):
             self.interactive_mode = not remainder
             self.initialize_app(remainder)
         except Exception as err:
-            if self.options.debug:
+            if self.options.verbose_level == self.DEBUG_LEVEL:
                 self.log.exception(unicode(err))
                 raise
             else:
@@ -526,24 +562,24 @@ class NeutronShell(app.App):
             cmd_parser = cmd.get_parser(full_name)
             return run_command(cmd, cmd_parser, sub_argv)
         except Exception as err:
-            if self.options.debug:
+            if self.options.verbose_level == self.DEBUG_LEVEL:
                 self.log.exception(unicode(err))
             else:
                 self.log.error(unicode(err))
             try:
                 self.clean_up(cmd, result, err)
             except Exception as err2:
-                if self.options.debug:
+                if self.options.verbose_level == self.DEBUG_LEVEL:
                     self.log.exception(unicode(err2))
                 else:
                     self.log.error(_('Could not clean up: %s'), unicode(err2))
-            if self.options.debug:
+            if self.options.verbose_level == self.DEBUG_LEVEL:
                 raise
         else:
             try:
                 self.clean_up(cmd, result, None)
             except Exception as err3:
-                if self.options.debug:
+                if self.options.verbose_level == self.DEBUG_LEVEL:
                     self.log.exception(unicode(err3))
                 else:
                     self.log.error(_('Could not clean up: %s'), unicode(err3))
@@ -568,10 +604,12 @@ class NeutronShell(app.App):
 
             else:
                 # Validate password flow auth
-                if not self.options.os_username:
+                if (not self.options.os_username
+                    and not self.options.os_user_id):
                     raise exc.CommandError(
-                        _("You must provide a username via"
-                          " either --os-username or env[OS_USERNAME]"))
+                        _("You must provide a username or user ID via"
+                          "  --os-username, env[OS_USERNAME] or"
+                          "  --os-user_id, env[OS_USER_ID]"))
 
                 if not self.options.os_password:
                     raise exc.CommandError(
@@ -602,13 +640,16 @@ class NeutronShell(app.App):
             tenant_name=self.options.os_tenant_name,
             tenant_id=self.options.os_tenant_id,
             username=self.options.os_username,
+            user_id=self.options.os_user_id,
             password=self.options.os_password,
             region_name=self.options.os_region_name,
             api_version=self.api_version,
             auth_strategy=self.options.os_auth_strategy,
+            service_type=self.options.service_type,
             endpoint_type=self.options.endpoint_type,
             insecure=self.options.insecure,
             ca_cert=self.options.os_cacert,
+            timeout=self.options.timeout,
             log_credentials=True)
         return
 
@@ -635,7 +676,7 @@ class NeutronShell(app.App):
     def clean_up(self, cmd, result, err):
         self.log.debug('clean_up %s', cmd.__class__.__name__)
         if err:
-            self.log.debug(_('Got an error: %s'), unicode(err))
+            self.log.debug('Got an error: %s', unicode(err))
 
     def configure_logging(self):
         """Create logging handlers for any log output."""
@@ -646,15 +687,16 @@ class NeutronShell(app.App):
 
         # Send higher-level messages to the console via stderr
         console = logging.StreamHandler(self.stderr)
-        console_level = {0: logging.WARNING,
-                         1: logging.INFO,
-                         2: logging.DEBUG,
+        console_level = {self.WARNING_LEVEL: logging.WARNING,
+                         self.INFO_LEVEL: logging.INFO,
+                         self.DEBUG_LEVEL: logging.DEBUG,
                          }.get(self.options.verbose_level, logging.DEBUG)
         console.setLevel(console_level)
         if logging.DEBUG == console_level:
             formatter = logging.Formatter(self.DEBUG_MESSAGE_FORMAT)
         else:
             formatter = logging.Formatter(self.CONSOLE_MESSAGE_FORMAT)
+        logging.getLogger('urllib3.connectionpool').setLevel(logging.WARNING)
         console.setFormatter(formatter)
         root_logger.addHandler(console)
         return
@@ -667,7 +709,7 @@ def main(argv=sys.argv[1:]):
     except exc.NeutronClientException:
         return 1
     except Exception as e:
-        print unicode(e)
+        print(unicode(e))
         return 1
 
 

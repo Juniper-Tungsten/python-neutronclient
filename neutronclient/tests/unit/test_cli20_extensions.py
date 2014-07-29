@@ -1,5 +1,3 @@
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
-
 # Copyright 2013 NEC Corporation
 # All Rights Reserved.
 #
@@ -35,9 +33,9 @@ class CLITestV20Extension(CLITestV20Base):
                                         response_contents=contents)
         ret_words = set(ret.split())
         # Check only the default columns are shown.
-        self.assertTrue('name' in ret_words)
-        self.assertTrue('alias' in ret_words)
-        self.assertFalse('other' in ret_words)
+        self.assertIn('name', ret_words)
+        self.assertIn('alias', ret_words)
+        self.assertNotIn('other', ret_words)
 
     def test_show_extension(self):
         # -F option does not work for ext-show at the moment, so -F option

@@ -1,6 +1,4 @@
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
-
-# Copyright 2011, Nicira Networks, Inc.
+# Copyright 2011, VMware, Inc.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -16,7 +14,6 @@
 #
 # Borrowed from nova code base, more utilities will be added/borrowed as and
 # when needed.
-# @author: Somik Behera, Nicira Networks, Inc.
 
 """Utilities and helper functions."""
 
@@ -149,6 +146,8 @@ def str2dict(strdict):
         :param strdict: key1=value1,key2=value2
         '''
         _info = {}
+        if not strdict:
+            return _info
         for kv_str in strdict.split(","):
             k, v = kv_str.split("=", 1)
             _info.update({k: v})
@@ -173,13 +172,16 @@ def http_log_req(_logger, args, kwargs):
     if 'body' in kwargs and kwargs['body']:
         string_parts.append(" -d '%s'" % (kwargs['body']))
     string_parts = safe_encode_list(string_parts)
-    _logger.debug(_("\nREQ: %s\n"), "".join(string_parts))
+    _logger.debug("\nREQ: %s\n", "".join(string_parts))
 
 
 def http_log_resp(_logger, resp, body):
     if not _logger.isEnabledFor(logging.DEBUG):
         return
-    _logger.debug(_("RESP:%(resp)s %(body)s\n"), {'resp': resp, 'body': body})
+    _logger.debug("RESP:%(code)s %(headers)s %(body)s\n",
+                  {'code': resp.status_code,
+                   'headers': resp.headers,
+                   'body': body})
 
 
 def _safe_encode_without_obj(data):
@@ -193,7 +195,8 @@ def safe_encode_list(data):
 
 
 def safe_encode_dict(data):
-    def _encode_item((k, v)):
+    def _encode_item(item):
+        k, v = item
         if isinstance(v, list):
             return (k, safe_encode_list(v))
         elif isinstance(v, dict):

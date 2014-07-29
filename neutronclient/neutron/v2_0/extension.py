@@ -13,7 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
 
 import logging
 
@@ -41,5 +40,5 @@ class ShowExt(cmd_base.ShowCommand):
         cmd_base.add_show_list_common_argument(parser)
         parser.add_argument(
             'id', metavar='EXT-ALIAS',
-            help=_('The extension alias'))
+            help=_('The extension alias.'))
         return parser

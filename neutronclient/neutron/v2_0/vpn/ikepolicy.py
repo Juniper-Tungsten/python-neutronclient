@@ -1,5 +1,3 @@
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
-#
 #    (c) Copyright 2013 Hewlett-Packard Development Company, L.P.
 #    All Rights Reserved.
 #
@@ -27,7 +25,7 @@ from neutronclient.openstack.common.gettextutils import _
 
 
 class ListIKEPolicy(neutronv20.ListCommand):
-    """List IKEPolicies that belong to a tenant."""
+    """List IKE policies that belong to a tenant."""
 
     resource = 'ikepolicy'
     log = logging.getLogger(__name__ + '.ListIKEPolicy')
@@ -39,14 +37,14 @@ class ListIKEPolicy(neutronv20.ListCommand):
 
 
 class ShowIKEPolicy(neutronv20.ShowCommand):
-    """Show information of a given IKEPolicy."""
+    """Show information of a given IKE policy."""
 
     resource = 'ikepolicy'
     log = logging.getLogger(__name__ + '.ShowIKEPolicy')
 
 
 class CreateIKEPolicy(neutronv20.CreateCommand):
-    """Create an IKEPolicy."""
+    """Create an IKE policy."""
 
     resource = 'ikepolicy'
     log = logging.getLogger(__name__ + '.CreateIKEPolicy')
@@ -59,14 +57,11 @@ class CreateIKEPolicy(neutronv20.CreateCommand):
             '--auth-algorithm',
             default='sha1', choices=['sha1'],
             help=_('Authentication algorithm in lowercase. '
-                   'default:sha1'))
+                   'Default:sha1'))
         parser.add_argument(
             '--encryption-algorithm',
-            default='aes-128', choices=['3des',
-                                        'aes-128',
-                                        'aes-192',
-                                        'aes-256'],
-            help=_('Encryption Algorithm in lowercase, default:aes-128'))
+            default='aes-128',
+            help=_('Encryption algorithm in lowercase, default:aes-128'))
         parser.add_argument(
             '--phase1-negotiation-mode',
             default='main', choices=['main'],
@@ -86,7 +81,7 @@ class CreateIKEPolicy(neutronv20.CreateCommand):
             help=vpn_utils.lifetime_help("IKE"))
         parser.add_argument(
             'name', metavar='NAME',
-            help=_('Name of the IKE Policy'))
+            help=_('Name of the IKE policy.'))
 
     def args2body(self, parsed_args):
 
@@ -110,7 +105,7 @@ class CreateIKEPolicy(neutronv20.CreateCommand):
 
 
 class UpdateIKEPolicy(neutronv20.UpdateCommand):
-    """Update a given IKE Policy."""
+    """Update a given IKE policy."""
 
     resource = 'ikepolicy'
     log = logging.getLogger(__name__ + '.UpdateIKEPolicy')
@@ -133,7 +128,7 @@ class UpdateIKEPolicy(neutronv20.UpdateCommand):
 
 
 class DeleteIKEPolicy(neutronv20.DeleteCommand):
-    """Delete a given IKE Policy."""
+    """Delete a given IKE policy."""
 
     resource = 'ikepolicy'
     log = logging.getLogger(__name__ + '.DeleteIKEPolicy')

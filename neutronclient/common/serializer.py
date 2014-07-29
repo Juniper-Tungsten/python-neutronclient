@@ -13,8 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
-
 ###
 ### Codes from neutron wsgi
 ###
@@ -69,9 +67,9 @@ class XMLDictSerializer(DictSerializer):
     def __init__(self, metadata=None, xmlns=None):
         """XMLDictSerializer constructor.
 
-        :param metadata: information needed to deserialize xml into
+        :param metadata: information needed to deserialize XML into
                          a dictionary.
-        :param xmlns: XML namespace to include with serialized xml
+        :param xmlns: XML namespace to include with serialized XML
         """
         super(XMLDictSerializer, self).__init__()
         self.metadata = metadata or {}
@@ -125,7 +123,7 @@ class XMLDictSerializer(DictSerializer):
         return etree.tostring(node, encoding='UTF-8')
 
     #NOTE (ameade): the has_atom should be removed after all of the
-    # xml serializers and view builders have been updated to the current
+    # XML serializers and view builders have been updated to the current
     # spec that required all responses include the xmlns:atom, the has_atom
     # flag is to prevent current tests from breaking
     def _add_xmlns(self, node, used_prefixes, has_atom=False):
@@ -193,7 +191,7 @@ class XMLDictSerializer(DictSerializer):
                 result.set(
                     constants.TYPE_ATTR,
                     constants.TYPE_FLOAT)
-            LOG.debug(_("Data %(data)s type is %(type)s"),
+            LOG.debug("Data %(data)s type is %(type)s",
                       {'data': data,
                        'type': type(data)})
             if isinstance(data, str):
@@ -226,7 +224,7 @@ class JSONDeserializer(TextDeserializer):
             return jsonutils.loads(datastring)
         except ValueError:
             msg = _("Cannot understand JSON")
-            raise exception.MalformedRequestBody(reason=msg)
+            raise exception.MalformedResponseBody(reason=msg)
 
     def default(self, datastring):
         return {'body': self._from_json(datastring)}
@@ -237,7 +235,7 @@ class XMLDeserializer(TextDeserializer):
     def __init__(self, metadata=None):
         """XMLDeserializer constructor.
 
-        :param metadata: information needed to deserialize xml into
+        :param metadata: information needed to deserialize XML into
                          a dictionary.
         """
         super(XMLDeserializer, self).__init__()
@@ -299,13 +297,14 @@ class XMLDeserializer(TextDeserializer):
                 parseError = True
             if parseError:
                 msg = _("Cannot understand XML")
-                raise exception.MalformedRequestBody(reason=msg)
+                raise exception.MalformedResponseBody(reason=msg)
             else:
                 raise
 
     def _from_xml_node(self, node, listnames):
         """Convert a minidom node to a simple Python type.
 
+        :param node: minidom node name
         :param listnames: list of XML node names whose subnodes should
                           be considered list items.
 

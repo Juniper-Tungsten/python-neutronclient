@@ -1,5 +1,3 @@
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
-#
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
 #    a copy of the License at
@@ -12,7 +10,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
 
 import logging
 
@@ -47,16 +44,16 @@ class CreateCredential(neutronV20.CreateCommand):
     def add_known_arguments(self, parser):
         parser.add_argument(
             'credential_name',
-            help=_('Name/Ip address for Credential'))
+            help=_('Name/IP address for credential.'))
         parser.add_argument(
             'credential_type',
-            help=_('Type of the Credential'))
+            help=_('Type of the credential.'))
         parser.add_argument(
             '--username',
-            help=_('Username for the credential'))
+            help=_('Username for the credential.'))
         parser.add_argument(
             '--password',
-            help=_('Password for the credential'))
+            help=_('Password for the credential.'))
 
     def args2body(self, parsed_args):
         body = {'credential': {

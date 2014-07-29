@@ -13,14 +13,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
 
 import copy
-import httplib2
 import json
 import uuid
 
-import mox
+from keystoneclient import exceptions as k_exceptions
+from mox3 import mox
+import requests
 import testtools
 
 from neutronclient import client
@@ -29,14 +29,16 @@ from neutronclient.common import utils
 
 
 USERNAME = 'testuser'
+USER_ID = 'testuser_id'
 TENANT_NAME = 'testtenant'
-TENANT_ID = 'testtenantid'
+TENANT_ID = 'testtenant_id'
 PASSWORD = 'password'
 AUTH_URL = 'authurl'
 ENDPOINT_URL = 'localurl'
 ENDPOINT_OVERRIDE = 'otherurl'
 TOKEN = 'tokentoken'
 REGION = 'RegionTest'
+NOAUTH = 'noauth'
 
 KS_TOKEN_RESULT = {
     'access': {
@@ -68,10 +70,49 @@ ENDPOINTS_RESULT = {
 }
 
 
+def get_response(status_code, headers=None):
+    response = mox.Mox().CreateMock(requests.Response)
+    response.headers = headers or {}
+    response.status_code = status_code
+    return response
+
+
+class CLITestAuthNoAuth(testtools.TestCase):
+
+    def setUp(self):
+        """Prepare the test environment."""
+        super(CLITestAuthNoAuth, self).setUp()
+        self.mox = mox.Mox()
+        self.client = client.HTTPClient(username=USERNAME,
+                                        tenant_name=TENANT_NAME,
+                                        password=PASSWORD,
+                                        endpoint_url=ENDPOINT_URL,
+                                        auth_strategy=NOAUTH,
+                                        region_name=REGION)
+        self.addCleanup(self.mox.VerifyAll)
+        self.addCleanup(self.mox.UnsetStubs)
+
+    def test_get_noauth(self):
+        self.mox.StubOutWithMock(self.client, "request")
+
+        res200 = get_response(200)
+
+        self.client.request(
+            mox.StrContains(ENDPOINT_URL + '/resource'), 'GET',
+            headers=mox.IsA(dict),
+        ).AndReturn((res200, ''))
+        self.mox.ReplayAll()
+
+        self.client.do_request('/resource', 'GET')
+        self.assertEqual(self.client.endpoint_url, ENDPOINT_URL)
+
+
 class CLITestAuthKeystone(testtools.TestCase):
 
-    # Auth Body expected when using tenant name
-    auth_type = 'tenantName'
+    # Auth Body expected
+    auth_body = ('{"auth": {"tenantName": "testtenant", '
+                 '"passwordCredentials": '
+                 '{"username": "testuser", "password": "password"}}}')
 
     def setUp(self):
         """Prepare the test environment."""
@@ -85,15 +126,30 @@ class CLITestAuthKeystone(testtools.TestCase):
         self.addCleanup(self.mox.VerifyAll)
         self.addCleanup(self.mox.UnsetStubs)
 
+    def test_reused_token_get_auth_info(self):
+        """Test that Client.get_auth_info() works even if client was
+           instantiated with predefined token.
+        """
+        client_ = client.HTTPClient(username=USERNAME,
+                                    tenant_name=TENANT_NAME,
+                                    token=TOKEN,
+                                    password=PASSWORD,
+                                    auth_url=AUTH_URL,
+                                    region_name=REGION)
+        expected = {'auth_token': TOKEN,
+                    'auth_tenant_id': None,
+                    'auth_user_id': None,
+                    'endpoint_url': self.client.endpoint_url}
+        self.assertEqual(client_.get_auth_info(), expected)
+
     def test_get_token(self):
         self.mox.StubOutWithMock(self.client, "request")
 
-        res200 = self.mox.CreateMock(httplib2.Response)
-        res200.status = 200
+        res200 = get_response(200)
 
         self.client.request(
             AUTH_URL + '/tokens', 'POST',
-            body=mox.StrContains(self.auth_type), headers=mox.IsA(dict)
+            body=self.auth_body, headers=mox.IsA(dict)
         ).AndReturn((res200, json.dumps(KS_TOKEN_RESULT)))
         self.client.request(
             mox.StrContains(ENDPOINT_URL + '/resource'), 'GET',
@@ -111,10 +167,8 @@ class CLITestAuthKeystone(testtools.TestCase):
         self.client.auth_token = TOKEN
         self.client.endpoint_url = ENDPOINT_URL
 
-        res200 = self.mox.CreateMock(httplib2.Response)
-        res200.status = 200
-        res401 = self.mox.CreateMock(httplib2.Response)
-        res401.status = 401
+        res200 = get_response(200)
+        res401 = get_response(401)
 
         # If a token is expired, neutron server retruns 401
         self.client.request(
@@ -132,13 +186,38 @@ class CLITestAuthKeystone(testtools.TestCase):
         self.mox.ReplayAll()
         self.client.do_request('/resource', 'GET')
 
+    def test_refresh_token_no_auth_url(self):
+        self.mox.StubOutWithMock(self.client, "request")
+        self.client.auth_url = None
+
+        self.client.auth_token = TOKEN
+        self.client.endpoint_url = ENDPOINT_URL
+
+        res401 = get_response(401)
+
+        # If a token is expired, neutron server returns 401
+        self.client.request(
+            mox.StrContains(ENDPOINT_URL + '/resource'), 'GET',
+            headers=mox.ContainsKeyValue('X-Auth-Token', TOKEN)
+        ).AndReturn((res401, ''))
+        self.mox.ReplayAll()
+        self.assertRaises(exceptions.NoAuthURLProvided,
+                          self.client.do_request,
+                          '/resource',
+                          'GET')
+
+    def test_get_endpoint_url_with_invalid_auth_url(self):
+        # Handle the case when auth_url is not provided
+        self.client.auth_url = None
+        self.assertRaises(exceptions.NoAuthURLProvided,
+                          self.client._get_endpoint_url)
+
     def test_get_endpoint_url(self):
         self.mox.StubOutWithMock(self.client, "request")
 
         self.client.auth_token = TOKEN
 
-        res200 = self.mox.CreateMock(httplib2.Response)
-        res200.status = 200
+        res200 = get_response(200)
 
         self.client.request(
             mox.StrContains(AUTH_URL + '/tokens/%s/endpoints' % TOKEN), 'GET',
@@ -161,9 +240,7 @@ class CLITestAuthKeystone(testtools.TestCase):
         self.mox.StubOutWithMock(self.client, "request")
 
         self.client.auth_token = TOKEN
-
-        res200 = self.mox.CreateMock(httplib2.Response)
-        res200.status = 200
+        res200 = get_response(200)
 
         self.client.request(
             mox.StrContains(ENDPOINT_OVERRIDE + '/resource'), 'GET',
@@ -180,9 +257,7 @@ class CLITestAuthKeystone(testtools.TestCase):
         self.mox.StubOutWithMock(self.client, "request")
 
         self.client.auth_token = TOKEN
-
-        res200 = self.mox.CreateMock(httplib2.Response)
-        res200.status = 200
+        res200 = get_response(200)
 
         self.client.request(
             mox.StrContains(AUTH_URL + '/tokens/%s/endpoints' % TOKEN), 'GET',
@@ -199,10 +274,8 @@ class CLITestAuthKeystone(testtools.TestCase):
 
         self.client.auth_token = TOKEN
 
-        res200 = self.mox.CreateMock(httplib2.Response)
-        res200.status = 200
-        res401 = self.mox.CreateMock(httplib2.Response)
-        res401.status = 401
+        res200 = get_response(200)
+        res401 = get_response(401)
 
         self.client.request(
             mox.StrContains(AUTH_URL + '/tokens/%s/endpoints' % TOKEN), 'GET',
@@ -218,86 +291,6 @@ class CLITestAuthKeystone(testtools.TestCase):
         ).AndReturn((res200, ''))
         self.mox.ReplayAll()
         self.client.do_request('/resource', 'GET')
-
-    def test_url_for(self):
-        resources = copy.deepcopy(KS_TOKEN_RESULT)
-
-        endpoints = resources['access']['serviceCatalog'][0]['endpoints'][0]
-        endpoints['publicURL'] = 'public'
-        endpoints['internalURL'] = 'internal'
-        endpoints['adminURL'] = 'admin'
-        catalog = client.ServiceCatalog(resources)
-
-        # endpoint_type not specified
-        url = catalog.url_for(attr='region',
-                              filter_value=REGION)
-        self.assertEqual('public', url)
-
-        # endpoint type specified (3 cases)
-        url = catalog.url_for(attr='region',
-                              filter_value=REGION,
-                              endpoint_type='adminURL')
-        self.assertEqual('admin', url)
-
-        url = catalog.url_for(attr='region',
-                              filter_value=REGION,
-                              endpoint_type='publicURL')
-        self.assertEqual('public', url)
-
-        url = catalog.url_for(attr='region',
-                              filter_value=REGION,
-                              endpoint_type='internalURL')
-        self.assertEqual('internal', url)
-
-        # endpoint_type requested does not exist.
-        self.assertRaises(exceptions.EndpointTypeNotFound,
-                          catalog.url_for,
-                          attr='region',
-                          filter_value=REGION,
-                          endpoint_type='privateURL')
-
-    # Test scenario with url_for when the service catalog only has publicURL.
-    def test_url_for_only_public_url(self):
-        resources = copy.deepcopy(KS_TOKEN_RESULT)
-        catalog = client.ServiceCatalog(resources)
-
-        # Remove endpoints from the catalog.
-        endpoints = resources['access']['serviceCatalog'][0]['endpoints'][0]
-        del endpoints['internalURL']
-        del endpoints['adminURL']
-        endpoints['publicURL'] = 'public'
-
-        # Use publicURL when specified explicitly.
-        url = catalog.url_for(attr='region',
-                              filter_value=REGION,
-                              endpoint_type='publicURL')
-        self.assertEqual('public', url)
-
-        # Use publicURL when specified explicitly.
-        url = catalog.url_for(attr='region',
-                              filter_value=REGION)
-        self.assertEqual('public', url)
-
-    # Test scenario with url_for when the service catalog only has adminURL.
-    def test_url_for_only_admin_url(self):
-        resources = copy.deepcopy(KS_TOKEN_RESULT)
-        catalog = client.ServiceCatalog(resources)
-        endpoints = resources['access']['serviceCatalog'][0]['endpoints'][0]
-        del endpoints['internalURL']
-        del endpoints['publicURL']
-        endpoints['adminURL'] = 'admin'
-
-        # Use publicURL when specified explicitly.
-        url = catalog.url_for(attr='region',
-                              filter_value=REGION,
-                              endpoint_type='adminURL')
-        self.assertEqual('admin', url)
-
-        # But not when nothing is specified.
-        self.assertRaises(exceptions.EndpointTypeNotFound,
-                          catalog.url_for,
-                          attr='region',
-                          filter_value=REGION)
 
     def test_endpoint_type(self):
         resources = copy.deepcopy(KS_TOKEN_RESULT)
@@ -343,7 +336,7 @@ class CLITestAuthKeystone(testtools.TestCase):
             username=USERNAME, tenant_name=TENANT_NAME, password=PASSWORD,
             auth_url=AUTH_URL, region_name=REGION, endpoint_type='privateURL')
 
-        self.assertRaises(exceptions.EndpointTypeNotFound,
+        self.assertRaises(k_exceptions.EndpointNotFound,
                           self.client._extract_service_catalog,
                           resources)
 
@@ -358,8 +351,7 @@ class CLITestAuthKeystone(testtools.TestCase):
         self.mox.StubOutWithMock(self.client, "request")
         self.mox.StubOutWithMock(utils, "http_log_req")
 
-        res200 = self.mox.CreateMock(httplib2.Response)
-        res200.status = 200
+        res200 = get_response(200)
 
         utils.http_log_req(mox.IgnoreArg(), mox.IgnoreArg(), mox.Func(
             verify_no_credentials))
@@ -378,13 +370,15 @@ class CLITestAuthKeystone(testtools.TestCase):
 
 class CLITestAuthKeystoneWithId(CLITestAuthKeystone):
 
-    # Auth Body expected when using tenant Id
-    auth_type = 'tenantId'
+    # Auth Body expected
+    auth_body = ('{"auth": {"passwordCredentials": '
+                 '{"password": "password", "userId": "testuser_id"}, '
+                 '"tenantId": "testtenant_id"}}')
 
     def setUp(self):
         """Prepare the test environment."""
         super(CLITestAuthKeystoneWithId, self).setUp()
-        self.client = client.HTTPClient(username=USERNAME,
+        self.client = client.HTTPClient(user_id=USER_ID,
                                         tenant_id=TENANT_ID,
                                         password=PASSWORD,
                                         auth_url=AUTH_URL,
@@ -393,13 +387,16 @@ class CLITestAuthKeystoneWithId(CLITestAuthKeystone):
 
 class CLITestAuthKeystoneWithIdandName(CLITestAuthKeystone):
 
-    # Auth Body expected when using tenant Id
-    auth_type = 'tenantId'
+    # Auth Body expected
+    auth_body = ('{"auth": {"passwordCredentials": '
+                 '{"password": "password", "userId": "testuser_id"}, '
+                 '"tenantId": "testtenant_id"}}')
 
     def setUp(self):
         """Prepare the test environment."""
         super(CLITestAuthKeystoneWithIdandName, self).setUp()
         self.client = client.HTTPClient(username=USERNAME,
+                                        user_id=USER_ID,
                                         tenant_id=TENANT_ID,
                                         tenant_name=TENANT_NAME,
                                         password=PASSWORD,

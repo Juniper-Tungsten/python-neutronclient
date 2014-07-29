@@ -13,7 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
 
 """Manage access to the clients, including authenticating when needed.
 """
@@ -53,22 +52,29 @@ class ClientManager(object):
     def __init__(self, token=None, url=None,
                  auth_url=None,
                  endpoint_type=None,
-                 tenant_name=None, tenant_id=None,
-                 username=None, password=None,
+                 tenant_name=None,
+                 tenant_id=None,
+                 username=None,
+                 user_id=None,
+                 password=None,
                  region_name=None,
                  api_version=None,
                  auth_strategy=None,
                  insecure=False,
                  ca_cert=None,
                  log_credentials=False,
+                 service_type=None,
+                 timeout=None
                  ):
         self._token = token
         self._url = url
         self._auth_url = auth_url
+        self._service_type = service_type
         self._endpoint_type = endpoint_type
         self._tenant_name = tenant_name
         self._tenant_id = tenant_id
         self._username = username
+        self._user_id = user_id
         self._password = password
         self._region_name = region_name
         self._api_version = api_version
@@ -77,21 +83,25 @@ class ClientManager(object):
         self._insecure = insecure
         self._ca_cert = ca_cert
         self._log_credentials = log_credentials
+        self._timeout = timeout
         return
 
     def initialize(self):
         if not self._url:
             httpclient = client.HTTPClient(
                 username=self._username,
+                user_id=self._user_id,
                 tenant_name=self._tenant_name,
                 tenant_id=self._tenant_id,
                 password=self._password,
                 region_name=self._region_name,
                 auth_url=self._auth_url,
+                service_type=self._service_type,
                 endpoint_type=self._endpoint_type,
                 insecure=self._insecure,
                 ca_cert=self._ca_cert,
-                log_credentials=self._log_credentials)
+                log_credentials=self._log_credentials,
+                timeout=self._timeout)
             httpclient.authenticate()
             # Populate other password flow attributes
             self._token = httpclient.auth_token

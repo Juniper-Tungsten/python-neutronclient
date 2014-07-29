@@ -15,11 +15,10 @@
 #
 # @author: Ilya Shakhat, Mirantis Inc.
 #
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
 
 import sys
 
-import mox
+from mox3 import mox
 
 from neutronclient.neutron.v2_0.lb import pool
 from neutronclient.tests.unit import test_cli20
@@ -165,8 +164,8 @@ class CLITestV20LbPoolJSON(test_cli20.CLITestV20Base):
         self.mox.VerifyAll()
         self.mox.UnsetStubs()
         _str = self.fake_stdout.make_string()
-        self.assertTrue('bytes_in' in _str)
-        self.assertTrue('bytes_out' in _str)
+        self.assertIn('bytes_in', _str)
+        self.assertIn('bytes_out', _str)
 
 
 class CLITestV20LbPoolXML(CLITestV20LbPoolJSON):

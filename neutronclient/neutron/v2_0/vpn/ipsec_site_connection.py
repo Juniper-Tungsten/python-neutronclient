@@ -1,5 +1,3 @@
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
-#
 #    (c) Copyright 2013 Hewlett-Packard Development Company, L.P.
 #    All Rights Reserved.
 #
@@ -36,7 +34,7 @@ def _format_peer_cidrs(ipsec_site_connection):
 
 
 class ListIPsecSiteConnection(neutronv20.ListCommand):
-    """List IPsecSiteConnections that belong to a given tenant."""
+    """List IPsec site connections that belong to a given tenant."""
 
     resource = 'ipsec_site_connection'
     log = logging.getLogger(__name__ + '.ListIPsecSiteConnection')
@@ -49,14 +47,14 @@ class ListIPsecSiteConnection(neutronv20.ListCommand):
 
 
 class ShowIPsecSiteConnection(neutronv20.ShowCommand):
-    """Show information of a given IPsecSiteConnection."""
+    """Show information of a given IPsec site connection."""
 
     resource = 'ipsec_site_connection'
     log = logging.getLogger(__name__ + '.ShowIPsecSiteConnection')
 
 
 class CreateIPsecSiteConnection(neutronv20.CreateCommand):
-    """Create an IPsecSiteConnection."""
+    """Create an IPsec site connection."""
     resource = 'ipsec_site_connection'
     log = logging.getLogger(__name__ + '.CreateIPsecSiteConnection')
 
@@ -64,13 +62,13 @@ class CreateIPsecSiteConnection(neutronv20.CreateCommand):
         parser.add_argument(
             '--admin-state-down',
             default=True, action='store_false',
-            help=_('Set admin state up to false'))
+            help=_('Set admin state up to false.'))
         parser.add_argument(
             '--name',
-            help=_('Set friendly name for the connection'))
+            help=_('Set friendly name for the connection.'))
         parser.add_argument(
             '--description',
-            help=_('Set a description for the connection'))
+            help=_('Set a description for the connection.'))
         parser.add_argument(
             '--mtu',
             default='1500',
@@ -84,19 +82,19 @@ class CreateIPsecSiteConnection(neutronv20.CreateCommand):
             '--dpd',
             metavar="action=ACTION,interval=INTERVAL,timeout=TIMEOUT",
             type=utils.str2dict,
-            help=vpn_utils.dpd_help("IPsec Connection"))
+            help=vpn_utils.dpd_help("IPsec connection."))
         parser.add_argument(
             '--vpnservice-id', metavar='VPNSERVICE',
             required=True,
-            help=_('VPNService instance id associated with this connection'))
+            help=_('VPN service instance ID associated with this connection.'))
         parser.add_argument(
             '--ikepolicy-id', metavar='IKEPOLICY',
             required=True,
-            help=_('IKEPolicy id associated with this connection'))
+            help=_('IKE policy ID associated with this connection.'))
         parser.add_argument(
             '--ipsecpolicy-id', metavar='IPSECPOLICY',
             required=True,
-            help=_('IPsecPolicy id associated with this connection'))
+            help=_('IPsec policy ID associated with this connection.'))
         parser.add_argument(
             '--peer-address',
             required=True,
@@ -110,11 +108,11 @@ class CreateIPsecSiteConnection(neutronv20.CreateCommand):
             '--peer-cidr',
             action='append', dest='peer_cidrs',
             required=True,
-            help=_('Remote subnet(s) in CIDR format'))
+            help=_('Remote subnet(s) in CIDR format.'))
         parser.add_argument(
             '--psk',
             required=True,
-            help=_('Pre-Shared Key string'))
+            help=_('Pre-shared key string.'))
 
     def args2body(self, parsed_args):
         _vpnservice_id = neutronv20.find_resourceid_by_name_or_id(
@@ -164,7 +162,7 @@ class CreateIPsecSiteConnection(neutronv20.CreateCommand):
 
 
 class UpdateIPsecSiteConnection(neutronv20.UpdateCommand):
-    """Update a given IPsecSiteConnection."""
+    """Update a given IPsec site connection."""
 
     resource = 'ipsec_site_connection'
     log = logging.getLogger(__name__ + '.UpdateIPsecSiteConnection')
@@ -175,7 +173,7 @@ class UpdateIPsecSiteConnection(neutronv20.UpdateCommand):
             '--dpd',
             metavar="action=ACTION,interval=INTERVAL,timeout=TIMEOUT",
             type=utils.str2dict,
-            help=vpn_utils.dpd_help("IPsec Connection"))
+            help=vpn_utils.dpd_help("IPsec connection."))
 
     def args2body(self, parsed_args):
         body = {'ipsec_site_connection': {
@@ -188,7 +186,7 @@ class UpdateIPsecSiteConnection(neutronv20.UpdateCommand):
 
 
 class DeleteIPsecSiteConnection(neutronv20.DeleteCommand):
-    """Delete a given IPsecSiteConnection."""
+    """Delete a given IPsec site connection."""
 
     resource = 'ipsec_site_connection'
     log = logging.getLogger(__name__ + '.DeleteIPsecSiteConnection')

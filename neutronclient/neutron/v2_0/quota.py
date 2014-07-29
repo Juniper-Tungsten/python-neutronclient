@@ -13,7 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
+
+from __future__ import print_function
 
 import argparse
 import logging
@@ -43,7 +44,7 @@ class DeleteQuota(neutronV20.NeutronCommand):
         parser = super(DeleteQuota, self).get_parser(prog_name)
         parser.add_argument(
             '--tenant-id', metavar='tenant-id',
-            help=_('The owner tenant ID'))
+            help=_('The owner tenant ID.'))
         parser.add_argument(
             '--tenant_id',
             help=argparse.SUPPRESS)
@@ -58,14 +59,15 @@ class DeleteQuota(neutronV20.NeutronCommand):
         obj_deleter = getattr(neutron_client,
                               "delete_%s" % self.resource)
         obj_deleter(tenant_id)
-        print >>self.app.stdout, (_('Deleted %(resource)s: %(tenant_id)s')
-                                  % {'tenant_id': tenant_id,
-                                     'resource': self.resource})
+        print((_('Deleted %(resource)s: %(tenant_id)s')
+               % {'tenant_id': tenant_id,
+                  'resource': self.resource}),
+              file=self.app.stdout)
         return
 
 
 class ListQuota(neutronV20.NeutronCommand, lister.Lister):
-    """List defined quotas of all tenants."""
+    """List quotas of all tenants who have non-default quota values."""
 
     api = 'network'
     resource = 'quota'
@@ -94,7 +96,7 @@ class ListQuota(neutronV20.NeutronCommand, lister.Lister):
 
 
 class ShowQuota(neutronV20.NeutronCommand, show.ShowOne):
-    """Show quotas of a given tenant
+    """Show quotas of a given tenant.
 
     """
     api = 'network'
@@ -105,7 +107,7 @@ class ShowQuota(neutronV20.NeutronCommand, show.ShowOne):
         parser = super(ShowQuota, self).get_parser(prog_name)
         parser.add_argument(
             '--tenant-id', metavar='tenant-id',
-            help=_('The owner tenant ID'))
+            help=_('The owner tenant ID.'))
         parser.add_argument(
             '--tenant_id',
             help=argparse.SUPPRESS)
@@ -150,31 +152,44 @@ class UpdateQuota(neutronV20.NeutronCommand, show.ShowOne):
         parser = super(UpdateQuota, self).get_parser(prog_name)
         parser.add_argument(
             '--tenant-id', metavar='tenant-id',
-            help=_('The owner tenant ID'))
+            help=_('The owner tenant ID.'))
         parser.add_argument(
             '--tenant_id',
             help=argparse.SUPPRESS)
         parser.add_argument(
             '--network', metavar='networks',
-            help=_('The limit of networks'))
+            help=_('The limit of networks.'))
         parser.add_argument(
             '--subnet', metavar='subnets',
-            help=_('The limit of subnets'))
+            help=_('The limit of subnets.'))
         parser.add_argument(
             '--port', metavar='ports',
-            help=_('The limit of ports'))
+            help=_('The limit of ports.'))
         parser.add_argument(
             '--router', metavar='routers',
-            help=_('The limit of routers'))
+            help=_('The limit of routers.'))
         parser.add_argument(
             '--floatingip', metavar='floatingips',
-            help=_('The limit of floating IPs'))
+            help=_('The limit of floating IPs.'))
         parser.add_argument(
             '--security-group', metavar='security_groups',
-            help=_('The limit of security groups'))
+            help=_('The limit of security groups.'))
         parser.add_argument(
             '--security-group-rule', metavar='security_group_rules',
-            help=_('The limit of security groups rules'))
+            help=_('The limit of security groups rules.'))
+        parser.add_argument(
+            '--vip', metavar='vips',
+            help=_('The limit of vips.'))
+        parser.add_argument(
+            '--pool', metavar='pools',
+            help=_('The limit of pools.'))
+        parser.add_argument(
+            '--member', metavar='members',
+            help=_('The limit of pool members.'))
+        parser.add_argument(
+            '--health-monitor', metavar='health_monitors',
+            help=_('The limit of health monitors.'))
+
         return parser
 
     def _validate_int(self, name, value):
@@ -189,7 +204,8 @@ class UpdateQuota(neutronV20.NeutronCommand, show.ShowOne):
     def args2body(self, parsed_args):
         quota = {}
         for resource in ('network', 'subnet', 'port', 'router', 'floatingip',
-                         'security_group', 'security_group_rule'):
+                         'security_group', 'security_group_rule',
+                         'vip', 'pool', 'member', 'health_monitor'):
             if getattr(parsed_args, resource):
                 quota[resource] = self._validate_int(
                     resource,

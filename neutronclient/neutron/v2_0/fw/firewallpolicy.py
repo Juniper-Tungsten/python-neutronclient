@@ -15,7 +15,8 @@
 #
 # @author: KC Wang, Big Switch Networks
 #
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
+
+from __future__ import print_function
 
 import argparse
 import logging
@@ -63,24 +64,24 @@ class CreateFirewallPolicy(neutronv20.CreateCommand):
         parser.add_argument(
             'name',
             metavar='NAME',
-            help=_('Name for the firewall policy'))
+            help=_('Name for the firewall policy.'))
         parser.add_argument(
             '--description',
-            help=_('Description for the firewall policy'))
+            help=_('Description for the firewall policy.'))
         parser.add_argument(
             '--shared',
             dest='shared',
             action='store_true',
-            help=_('To create a shared policy'),
+            help=_('Create a shared policy.'),
             default=argparse.SUPPRESS)
         parser.add_argument(
             '--firewall-rules', type=string.split,
             help=_('Ordered list of whitespace-delimited firewall rule '
-            'names or IDs; e.g., --firewall-rules \"rule1 rule2\"'))
+                   'names or IDs; e.g., --firewall-rules \"rule1 rule2\"'))
         parser.add_argument(
             '--audited',
             action='store_true',
-            help=_('To set audited to True'),
+            help=_('Sets audited to True.'),
             default=argparse.SUPPRESS)
 
     def args2body(self, parsed_args):
@@ -90,10 +91,10 @@ class CreateFirewallPolicy(neutronv20.CreateCommand):
                 _firewall_rules.append(
                     neutronv20.find_resourceid_by_name_or_id(
                         self.get_client(), 'firewall_rule', f))
-                body = {self.resource: {
-                        'firewall_rules': _firewall_rules,
-                        },
-                        }
+            body = {self.resource: {
+                    'firewall_rules': _firewall_rules,
+                    },
+                    }
         else:
             body = {self.resource: {}}
         neutronv20.update_dict(parsed_args, body[self.resource],
@@ -155,15 +156,15 @@ class FirewallPolicyInsertRule(neutronv20.UpdateCommand):
         parser.add_argument(
             '--insert-before',
             metavar='FIREWALL_RULE',
-            help=_('Insert before this rule'))
+            help=_('Insert before this rule.'))
         parser.add_argument(
             '--insert-after',
             metavar='FIREWALL_RULE',
-            help=_('Insert after this rule'))
+            help=_('Insert after this rule.'))
         parser.add_argument(
             'firewall_rule_id',
             metavar='FIREWALL_RULE',
-            help=_('New rule to insert'))
+            help=_('New rule to insert.'))
         self.add_known_arguments(parser)
         return parser
 
@@ -175,9 +176,8 @@ class FirewallPolicyInsertRule(neutronv20.UpdateCommand):
                                                        self.resource,
                                                        parsed_args.id)
         self.call_api(neutron_client, _id, body)
-        print >>self.app.stdout, (
-            _('Inserted firewall rule in firewall policy %(id)s') %
-            {'id': parsed_args.id})
+        print((_('Inserted firewall rule in firewall policy %(id)s') %
+               {'id': parsed_args.id}), file=self.app.stdout)
 
 
 class FirewallPolicyRemoveRule(neutronv20.UpdateCommand):
@@ -205,7 +205,7 @@ class FirewallPolicyRemoveRule(neutronv20.UpdateCommand):
         parser.add_argument(
             'firewall_rule_id',
             metavar='FIREWALL_RULE',
-            help=_('Firewall rule to remove from policy'))
+            help=_('Firewall rule to remove from policy.'))
         self.add_known_arguments(parser)
         return parser
 
@@ -217,6 +217,5 @@ class FirewallPolicyRemoveRule(neutronv20.UpdateCommand):
                                                        self.resource,
                                                        parsed_args.id)
         self.call_api(neutron_client, _id, body)
-        print >>self.app.stdout, (
-            _('Removed firewall rule from firewall policy %(id)s') %
-            {'id': parsed_args.id})
+        print((_('Removed firewall rule from firewall policy %(id)s') %
+               {'id': parsed_args.id}), file=self.app.stdout)

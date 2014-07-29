@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
-
 # Copyright 2012 Red Hat
 # All Rights Reserved.
 #
@@ -18,7 +16,7 @@
 
 import sys
 
-import mox
+from mox3 import mox
 
 from neutronclient.neutron.v2_0 import securitygroup
 from neutronclient.tests.unit import test_cli20

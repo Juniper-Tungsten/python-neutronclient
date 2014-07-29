@@ -13,7 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
 
 import logging
 
@@ -32,12 +31,15 @@ class ListAgent(neutronV20.ListCommand):
 
     resource = 'agent'
     log = logging.getLogger(__name__ + '.ListAgent')
-    list_columns = ['id', 'agent_type', 'host', 'alive', 'admin_state_up']
+    list_columns = ['id', 'agent_type', 'host', 'alive', 'admin_state_up',
+                    'binary']
     _formatters = {'heartbeat_timestamp': _format_timestamp}
+    sorting_support = True
 
     def extend_list(self, data, parsed_args):
         for agent in data:
-            agent['alive'] = ":-)" if agent['alive'] else 'xxx'
+            if 'alive' in agent:
+                agent['alive'] = ":-)" if agent['alive'] else 'xxx'
 
 
 class ShowAgent(neutronV20.ShowCommand):

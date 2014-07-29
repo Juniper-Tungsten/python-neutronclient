@@ -13,10 +13,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
 
 import sys
 
+from mox3 import mox
+
+from neutronclient.common import exceptions
 from neutronclient.neutron.v2_0 import subnet
 from neutronclient.tests.unit import test_cli20
 
@@ -72,6 +74,24 @@ class CLITestV20SubnetJSON(test_cli20.CLITestV20Base):
         except Exception:
             return
         self.fail('No exception for bad gateway option')
+
+    def test_create_subnet_with_enable_and_disable_dhcp(self):
+        """Create sbunet: --enable-dhcp and --disable-dhcp."""
+        resource = 'subnet'
+        cmd = subnet.CreateSubnet(test_cli20.MyApp(sys.stdout), None)
+        name = 'myname'
+        myid = 'myid'
+        netid = 'netid'
+        cidr = 'cidrvalue'
+        args = ['--enable-dhcp', '--disable-dhcp', netid, cidr]
+        position_names = ['ip_version', 'network_id', 'cidr', 'gateway_ip']
+        position_values = [4, netid, cidr, None]
+        try:
+            self._test_create_resource(resource, cmd, name, myid, args,
+                                       position_names, position_values)
+        except exceptions.CommandError:
+            return
+        self.fail('No exception for --enable-dhcp --disable-dhcp option')
 
     def test_create_subnet_tenant(self):
         """Create subnet: --tenant_id tenantid netid cidr."""
@@ -297,6 +317,25 @@ class CLITestV20SubnetJSON(test_cli20.CLITestV20Base):
                                    position_names, position_values,
                                    tenant_id='tenantid')
 
+    def test_create_subnet_max_v4_cidr(self):
+        """Create subnet: --gateway gateway netid cidr."""
+        resource = 'subnet'
+        cmd = subnet.CreateSubnet(test_cli20.MyApp(sys.stdout), None)
+        name = 'myname'
+        myid = 'myid'
+        netid = 'netid'
+        cidr = '192.168.0.1/32'
+        gateway = 'gatewayvalue'
+        args = ['--gateway', gateway, netid, cidr]
+        position_names = ['ip_version', 'network_id', 'cidr', 'gateway_ip']
+        position_values = [4, netid, cidr, gateway]
+        self.mox.StubOutWithMock(cmd.log, 'warning')
+        cmd.log.warning(mox.IgnoreArg())
+        self._test_create_resource(resource, cmd, name, myid, args,
+                                   position_names, position_values)
+        self.mox.VerifyAll()
+        self.mox.UnsetStubs()
+
     def test_list_subnets_detail(self):
         """List subnets: -D."""
         resources = "subnets"
@@ -380,6 +419,32 @@ class CLITestV20SubnetJSON(test_cli20.CLITestV20Base):
                                     '--request-format', 'json'],
                                    {'name': 'myname', }
                                    )
+
+    def test_update_subnet_allocation_pools(self):
+        """Update subnet: myid --name myname --tags a b."""
+        resource = 'subnet'
+        cmd = subnet.UpdateSubnet(test_cli20.MyApp(sys.stdout), None)
+        self._test_update_resource(resource, cmd, 'myid',
+                                   ['myid', '--allocation-pool',
+                                    'start=1.2.0.2,end=1.2.0.127',
+                                    '--request-format', 'json'],
+                                   {'allocation_pools': [{'start': '1.2.0.2',
+                                                          'end': '1.2.0.127'}]}
+                                   )
+
+    def test_update_subnet_enable_disable_dhcp(self):
+        """Update sbunet: --enable-dhcp and --disable-dhcp."""
+        resource = 'subnet'
+        cmd = subnet.UpdateSubnet(test_cli20.MyApp(sys.stdout), None)
+        try:
+            self._test_update_resource(resource, cmd, 'myid',
+                                       ['myid', '--name', 'myname',
+                                        '--enable-dhcp', '--disable-dhcp'],
+                                       {'name': 'myname', }
+                                       )
+        except exceptions.CommandError:
+            return
+        self.fail('No exception for --enable-dhcp --disable-dhcp option')
 
     def test_show_subnet(self):
         """Show subnet: --fields id --fields name myid."""

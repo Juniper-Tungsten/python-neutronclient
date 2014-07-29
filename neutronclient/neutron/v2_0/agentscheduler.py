@@ -13,7 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
+
+from __future__ import print_function
 
 import logging
 
@@ -21,6 +22,8 @@ from neutronclient.neutron import v2_0 as neutronV20
 from neutronclient.neutron.v2_0 import network
 from neutronclient.neutron.v2_0 import router
 from neutronclient.openstack.common.gettextutils import _
+
+
 PERFECT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%f"
 
 
@@ -33,10 +36,10 @@ class AddNetworkToDhcpAgent(neutronV20.NeutronCommand):
         parser = super(AddNetworkToDhcpAgent, self).get_parser(prog_name)
         parser.add_argument(
             'dhcp_agent',
-            help=_('ID of the DHCP agent'))
+            help=_('ID of the DHCP agent.'))
         parser.add_argument(
             'network',
-            help=_('Network to add'))
+            help=_('Network to add.'))
         return parser
 
     def run(self, parsed_args):
@@ -47,8 +50,8 @@ class AddNetworkToDhcpAgent(neutronV20.NeutronCommand):
             neutron_client, 'network', parsed_args.network)
         neutron_client.add_network_to_dhcp_agent(parsed_args.dhcp_agent,
                                                  {'network_id': _net_id})
-        print >>self.app.stdout, (
-            _('Added network %s to DHCP agent') % parsed_args.network)
+        print(_('Added network %s to DHCP agent') % parsed_args.network,
+              file=self.app.stdout)
 
 
 class RemoveNetworkFromDhcpAgent(neutronV20.NeutronCommand):
@@ -59,10 +62,10 @@ class RemoveNetworkFromDhcpAgent(neutronV20.NeutronCommand):
         parser = super(RemoveNetworkFromDhcpAgent, self).get_parser(prog_name)
         parser.add_argument(
             'dhcp_agent',
-            help=_('ID of the DHCP agent'))
+            help=_('ID of the DHCP agent.'))
         parser.add_argument(
             'network',
-            help=_('Network to remove'))
+            help=_('Network to remove.'))
         return parser
 
     def run(self, parsed_args):
@@ -73,8 +76,8 @@ class RemoveNetworkFromDhcpAgent(neutronV20.NeutronCommand):
             neutron_client, 'network', parsed_args.network)
         neutron_client.remove_network_from_dhcp_agent(
             parsed_args.dhcp_agent, _net_id)
-        print >>self.app.stdout, (
-            _('Removed network %s to DHCP agent') % parsed_args.network)
+        print(_('Removed network %s from DHCP agent') % parsed_args.network,
+              file=self.app.stdout)
 
 
 class ListNetworksOnDhcpAgent(network.ListNetwork):
@@ -88,7 +91,7 @@ class ListNetworksOnDhcpAgent(network.ListNetwork):
                        self).get_parser(prog_name)
         parser.add_argument(
             'dhcp_agent',
-            help=_('ID of the DHCP agent'))
+            help=_('ID of the DHCP agent.'))
         return parser
 
     def call_server(self, neutron_client, search_opts, parsed_args):
@@ -111,7 +114,7 @@ class ListDhcpAgentsHostingNetwork(neutronV20.ListCommand):
                        self).get_parser(prog_name)
         parser.add_argument(
             'network',
-            help=_('Network to query'))
+            help=_('Network to query.'))
         return parser
 
     def extend_list(self, data, parsed_args):
@@ -136,10 +139,10 @@ class AddRouterToL3Agent(neutronV20.NeutronCommand):
         parser = super(AddRouterToL3Agent, self).get_parser(prog_name)
         parser.add_argument(
             'l3_agent',
-            help=_('ID of the L3 agent'))
+            help=_('ID of the L3 agent.'))
         parser.add_argument(
             'router',
-            help=_('Router to add'))
+            help=_('Router to add.'))
         return parser
 
     def run(self, parsed_args):
@@ -150,8 +153,8 @@ class AddRouterToL3Agent(neutronV20.NeutronCommand):
             neutron_client, 'router', parsed_args.router)
         neutron_client.add_router_to_l3_agent(parsed_args.l3_agent,
                                               {'router_id': _id})
-        print >>self.app.stdout, (
-            _('Added router %s to L3 agent') % parsed_args.router)
+        print(_('Added router %s to L3 agent') % parsed_args.router,
+              file=self.app.stdout)
 
 
 class RemoveRouterFromL3Agent(neutronV20.NeutronCommand):
@@ -163,10 +166,10 @@ class RemoveRouterFromL3Agent(neutronV20.NeutronCommand):
         parser = super(RemoveRouterFromL3Agent, self).get_parser(prog_name)
         parser.add_argument(
             'l3_agent',
-            help=_('ID of the L3 agent'))
+            help=_('ID of the L3 agent.'))
         parser.add_argument(
             'router',
-            help=_('Router to remove'))
+            help=_('Router to remove.'))
         return parser
 
     def run(self, parsed_args):
@@ -177,8 +180,8 @@ class RemoveRouterFromL3Agent(neutronV20.NeutronCommand):
             neutron_client, 'router', parsed_args.router)
         neutron_client.remove_router_from_l3_agent(
             parsed_args.l3_agent, _id)
-        print >>self.app.stdout, (
-            _('Removed Router %s to L3 agent') % parsed_args.router)
+        print(_('Removed router %s from L3 agent') % parsed_args.router,
+              file=self.app.stdout)
 
 
 class ListRoutersOnL3Agent(neutronV20.ListCommand):
@@ -196,7 +199,7 @@ class ListRoutersOnL3Agent(neutronV20.ListCommand):
                        self).get_parser(prog_name)
         parser.add_argument(
             'l3_agent',
-            help=_('ID of the L3 agent to query'))
+            help=_('ID of the L3 agent to query.'))
         return parser
 
     def call_server(self, neutron_client, search_opts, parsed_args):
@@ -218,7 +221,7 @@ class ListL3AgentsHostingRouter(neutronV20.ListCommand):
         parser = super(ListL3AgentsHostingRouter,
                        self).get_parser(prog_name)
         parser.add_argument('router',
-                            help=_('Router to query'))
+                            help=_('Router to query.'))
         return parser
 
     def extend_list(self, data, parsed_args):
@@ -247,7 +250,7 @@ class ListPoolsOnLbaasAgent(neutronV20.ListCommand):
         parser = super(ListPoolsOnLbaasAgent, self).get_parser(prog_name)
         parser.add_argument(
             'lbaas_agent',
-            help=_('ID of the loadbalancer agent to query'))
+            help=_('ID of the loadbalancer agent to query.'))
         return parser
 
     def call_server(self, neutron_client, search_opts, parsed_args):
@@ -272,7 +275,7 @@ class GetLbaasAgentHostingPool(neutronV20.ListCommand):
         parser = super(GetLbaasAgentHostingPool,
                        self).get_parser(prog_name)
         parser.add_argument('pool',
-                            help=_('Pool to query'))
+                            help=_('Pool to query.'))
         return parser
 
     def extend_list(self, data, parsed_args):

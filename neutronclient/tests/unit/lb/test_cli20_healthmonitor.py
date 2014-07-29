@@ -15,11 +15,10 @@
 #
 # @author: Ilya Shakhat, Mirantis Inc.
 #
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
 
 import sys
 
-import mox
+from mox3 import mox
 
 from neutronclient.neutron.v2_0.lb import healthmonitor
 from neutronclient.tests.unit import test_cli20
