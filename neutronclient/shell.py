@@ -57,6 +57,10 @@ from neutronclient.neutron.v2_0.vpn import ikepolicy
 from neutronclient.neutron.v2_0.vpn import ipsec_site_connection
 from neutronclient.neutron.v2_0.vpn import ipsecpolicy
 from neutronclient.neutron.v2_0.vpn import vpnservice
+from neutronclient.neutron.v2_0 import ipam
+from neutronclient.neutron.v2_0 import policy
+from neutronclient.neutron.v2_0 import vpcroutetable
+
 from neutronclient.openstack.common.gettextutils import _
 from neutronclient.openstack.common import strutils
 from neutronclient.version import __version__
@@ -259,6 +263,24 @@ COMMAND_V2 = {
     'meter-label-rule-list': metering.ListMeteringLabelRule,
     'meter-label-rule-show': metering.ShowMeteringLabelRule,
     'meter-label-rule-delete': metering.DeleteMeteringLabelRule,
+    'ipam-list': ipam.ListIpam,
+    'ipam-show': ipam.ShowIpam,
+    'ipam-create': ipam.CreateIpam,
+    'ipam-delete': ipam.DeleteIpam,
+    'ipam-update': ipam.UpdateIpam,
+    'policy-list': policy.ListPolicy,
+    'policy-show': policy.ShowPolicy,
+    'policy-create': policy.CreatePolicy,
+    'policy-delete': policy.DeletePolicy,
+    'policy-update': policy.UpdatePolicy,
+    'nat-instance-list': vpcroutetable.ListNatInstance,
+    'nat-instance-show': vpcroutetable.ShowNatInstance,
+    'nat-instance-create': vpcroutetable.CreateNatInstance,
+    'nat-instance-delete': vpcroutetable.DeleteNatInstance,
+    'route-table-list': vpcroutetable.ListRouteTable,
+    'route-table-show': vpcroutetable.ShowRouteTable,
+    'route-table-create': vpcroutetable.CreateRouteTable,
+    'route-table-delete': vpcroutetable.DeleteRouteTable,
 }
 
 COMMANDS = {'2.0': COMMAND_V2}
