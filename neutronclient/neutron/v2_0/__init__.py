@@ -23,6 +23,7 @@ import re
 from cliff.formatters import table
 from cliff import lister
 from cliff import show
+import six
 
 from neutronclient.common import command
 from neutronclient.common import exceptions
@@ -61,10 +62,13 @@ def find_resourceid_by_id(client, resource, resource_id):
         message=not_found_message, status_code=404)
 
 
-def _find_resourceid_by_name(client, resource, name):
+def _find_resourceid_by_name(client, resource, name, project_id=None):
     resource_plural = _get_resource_plural(resource, client)
     obj_lister = getattr(client, "list_%s" % resource_plural)
-    data = obj_lister(name=name, fields='id')
+    params = {'name': name, 'fields': 'id'}
+    if project_id:
+        params['tenant_id'] = project_id
+    data = obj_lister(**params)
     collection = resource_plural
     info = data[collection]
     if len(info) > 1:
@@ -81,11 +85,13 @@ def _find_resourceid_by_name(client, resource, name):
         return info[0]['id']
 
 
-def find_resourceid_by_name_or_id(client, resource, name_or_id):
+def find_resourceid_by_name_or_id(client, resource, name_or_id,
+                                  project_id=None):
     try:
         return find_resourceid_by_id(client, resource, name_or_id)
     except exceptions.NeutronClientException:
-        return _find_resourceid_by_name(client, resource, name_or_id)
+        return _find_resourceid_by_name(client, resource, name_or_id,
+                                        project_id)
 
 
 def add_show_list_common_argument(parser):
@@ -274,7 +280,7 @@ def parse_args_to_dict(values_specs):
 
     # populate the parser with arguments
     _parser = argparse.ArgumentParser(add_help=False)
-    for opt, optspec in _options.iteritems():
+    for opt, optspec in six.iteritems(_options):
         _parser.add_argument(opt, **optspec)
     _args = _parser.parse_args(_values_specs)
 
@@ -298,7 +304,7 @@ def _merge_args(qCmd, parsed_args, _extra_values, value_specs):
     @param values_specs: the unparsed unknown parts
     """
     temp_values = _extra_values.copy()
-    for key, value in temp_values.iteritems():
+    for key, value in six.iteritems(temp_values):
         if hasattr(parsed_args, key):
             arg_value = getattr(parsed_args, key)
             if arg_value is not None and value is not None:
@@ -369,7 +375,7 @@ class NeutronCommand(command.OpenStackCommand):
     def format_output_data(self, data):
         # Modify data to make it more readable
         if self.resource in data:
-            for k, v in data[self.resource].iteritems():
+            for k, v in six.iteritems(data[self.resource]):
                 if isinstance(v, list):
                     value = '\n'.join(utils.dumps(
                         i, indent=self.json_indent) if isinstance(i, dict)
@@ -427,7 +433,7 @@ class CreateCommand(NeutronCommand, show.ShowOne):
                   file=self.app.stdout)
         else:
             info = {'': ''}
-        return zip(*sorted(info.iteritems()))
+        return zip(*sorted(six.iteritems(info)))
 
 
 class UpdateCommand(NeutronCommand):
@@ -659,6 +665,6 @@ class ShowCommand(NeutronCommand, show.ShowOne):
         self.format_output_data(data)
         resource = data[self.resource]
         if self.resource in data:
-            return zip(*sorted(resource.iteritems()))
+            return zip(*sorted(six.iteritems(resource)))
         else:
             return None
