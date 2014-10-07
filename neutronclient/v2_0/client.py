@@ -16,7 +16,6 @@
 
 import logging
 import time
-import urllib
 
 import requests
 import six.moves.urllib.parse as urlparse
@@ -33,14 +32,13 @@ _logger = logging.getLogger(__name__)
 
 
 def exception_handler_v20(status_code, error_content):
-    """Exception handler for API v2.0 client
+    """Exception handler for API v2.0 client.
 
-        This routine generates the appropriate
-        Neutron exception according to the contents of the
-        response body
+    This routine generates the appropriate Neutron exception according to
+    the contents of the response body.
 
-        :param status_code: HTTP error status code
-        :param error_content: deserialized body of error response
+    :param status_code: HTTP error status code
+    :param error_content: deserialized body of error response
     """
     error_dict = None
     if isinstance(error_content, dict):
@@ -87,8 +85,7 @@ def exception_handler_v20(status_code, error_content):
 
 
 class APIParamsCall(object):
-    """A Decorator to add support for format and tenant overriding
-       and filters
+    """A Decorator to add support for format and tenant overriding and filters.
     """
     def __init__(self, function):
         self.function = function
@@ -129,6 +126,14 @@ class Client(object):
                             http requests. (optional)
     :param bool insecure: SSL certificate validation. (optional)
     :param string ca_cert: SSL CA bundle file to use. (optional)
+    :param integer retries: How many times idempotent (GET, PUT, DELETE)
+                            requests to Neutron server should be retried if
+                            they fail (default: 0).
+    :param bool raise_errors: If True then exceptions caused by connection
+                              failure are propagated to the caller.
+                              (default: True)
+    :param session: Keystone client auth session to use. (optional)
+    :param auth: Keystone auth plugin to use. (optional)
 
     Example::
 
@@ -265,8 +270,7 @@ class Client(object):
 
     @APIParamsCall
     def get_quotas_tenant(self, **_params):
-        """Fetch tenant info in server's context for
-        following quota operation.
+        """Fetch tenant info in server's context for following quota operation.
         """
         return self.get(self.quota_path % 'tenant', params=_params)
 
@@ -1190,11 +1194,12 @@ class Client(object):
     def __init__(self, **kwargs):
         """Initialize a new client for the Neutron v2.0 API."""
         super(Client, self).__init__()
-        self.httpclient = client.HTTPClient(**kwargs)
+        self.retries = kwargs.pop('retries', 0)
+        self.raise_errors = kwargs.pop('raise_errors', True)
+        self.httpclient = client.construct_http_client(**kwargs)
         self.version = '2.0'
         self.format = 'json'
         self.action_prefix = "/v%s" % (self.version)
-        self.retries = 0
         self.retry_interval = 1
 
     def _handle_fault_response(self, status_code, response_body):
@@ -1222,16 +1227,19 @@ class Client(object):
         action = self.action_prefix + action
         if type(params) is dict and params:
             params = utils.safe_encode_dict(params)
-            action += '?' + urllib.urlencode(params, doseq=1)
+            action += '?' + urlparse.urlencode(params, doseq=1)
         # Ensure client always has correct uri - do not guesstimate anything
         self.httpclient.authenticate_and_fetch_endpoint_url()
         self._check_uri_length(action)
 
         if body:
             body = self.serialize(body)
-        self.httpclient.content_type = self.content_type()
-        resp, replybody = self.httpclient.do_request(action, method, body=body)
-        status_code = self.get_status_code(resp)
+
+        resp, replybody = self.httpclient.do_request(
+            action, method, body=body,
+            content_type=self.content_type())
+
+        status_code = resp.status_code
         if status_code in (requests.codes.ok,
                            requests.codes.created,
                            requests.codes.accepted,
@@ -1245,22 +1253,11 @@ class Client(object):
     def get_auth_info(self):
         return self.httpclient.get_auth_info()
 
-    def get_status_code(self, response):
-        """Returns the integer status code from the response.
-
-        Either a Webob.Response (used in testing) or requests.Response
-        is returned.
-        """
-        if hasattr(response, 'status_int'):
-            return response.status_int
-        else:
-            return response.status_code
-
     def serialize(self, data):
         """Serializes a dictionary into either XML or JSON.
 
-        A dictionary with a single key can be passed and
-        it can contain any structure.
+        A dictionary with a single key can be passed and it can contain any
+        structure.
         """
         if data is None:
             return None
@@ -1303,8 +1300,16 @@ class Client(object):
                 if i < self.retries:
                     _logger.debug('Retrying connection to Neutron service')
                     time.sleep(self.retry_interval)
+                elif self.raise_errors:
+                    raise
 
-        raise exceptions.ConnectionFailed(reason=_("Maximum attempts reached"))
+        if self.retries:
+            msg = (_("Failed to connect to Neutron server after %d attempts")
+                   % max_attempts)
+        else:
+            msg = _("Failed to connect Neutron server")
+
+        raise exceptions.ConnectionFailed(reason=msg)
 
     def delete(self, action, body=None, headers=None, params=None):
         return self.retry_request("DELETE", action, body=body,

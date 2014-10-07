@@ -15,35 +15,35 @@
 #
 
 import argparse
-import logging
 
 from neutronclient.common import exceptions
 from neutronclient.common import utils
 from neutronclient.neutron import v2_0 as neutronV20
 from neutronclient.openstack.common.gettextutils import _
+from neutronclient.openstack.common import jsonutils
 
 
 def _format_allocation_pools(subnet):
     try:
-        return '\n'.join([utils.dumps(pool) for pool in
+        return '\n'.join([jsonutils.dumps(pool) for pool in
                           subnet['allocation_pools']])
-    except Exception:
+    except (TypeError, KeyError):
         return ''
 
 
 def _format_dns_nameservers(subnet):
     try:
-        return '\n'.join([utils.dumps(server) for server in
+        return '\n'.join([jsonutils.dumps(server) for server in
                           subnet['dns_nameservers']])
-    except Exception:
+    except (TypeError, KeyError):
         return ''
 
 
 def _format_host_routes(subnet):
     try:
-        return '\n'.join([utils.dumps(route) for route in
+        return '\n'.join([jsonutils.dumps(route) for route in
                           subnet['host_routes']])
-    except Exception:
+    except (TypeError, KeyError):
         return ''
 
 
@@ -136,7 +136,6 @@ class ListSubnet(neutronV20.ListCommand):
     """List subnets that belong to a given tenant."""
 
     resource = 'subnet'
-    log = logging.getLogger(__name__ + '.ListSubnet')
     _formatters = {'allocation_pools': _format_allocation_pools,
                    'dns_nameservers': _format_dns_nameservers,
                    'host_routes': _format_host_routes, }
@@ -149,14 +148,12 @@ class ShowSubnet(neutronV20.ShowCommand):
     """Show information of a given subnet."""
 
     resource = 'subnet'
-    log = logging.getLogger(__name__ + '.ShowSubnet')
 
 
 class CreateSubnet(neutronV20.CreateCommand):
     """Create a subnet for a given tenant."""
 
     resource = 'subnet'
-    log = logging.getLogger(__name__ + '.CreateSubnet')
 
     def add_known_arguments(self, parser):
         add_updatable_arguments(parser)
@@ -200,14 +197,12 @@ class DeleteSubnet(neutronV20.DeleteCommand):
     """Delete a given subnet."""
 
     resource = 'subnet'
-    log = logging.getLogger(__name__ + '.DeleteSubnet')
 
 
 class UpdateSubnet(neutronV20.UpdateCommand):
     """Update subnet's information."""
 
     resource = 'subnet'
-    log = logging.getLogger(__name__ + '.UpdateSubnet')
 
     def add_known_arguments(self, parser):
         add_updatable_arguments(parser)

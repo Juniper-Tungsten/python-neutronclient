@@ -14,6 +14,7 @@
 #    under the License.
 #
 
+import itertools
 import sys
 
 from mox3 import mox
@@ -227,8 +228,8 @@ class CLITestV20PortJSON(test_cli20.CLITestV20Base):
                                   fields_1=['a', 'b'], fields_2=['c', 'd'])
 
     def _test_list_router_port(self, resources, cmd,
-                               myid, detail=False, tags=[],
-                               fields_1=[], fields_2=[]):
+                               myid, detail=False, tags=(),
+                               fields_1=(), fields_2=()):
         self.mox.StubOutWithMock(cmd, "get_client")
         self.mox.StubOutWithMock(self.client.httpclient, "request")
         cmd.get_client().MultipleTimes().AndReturn(self.client)
@@ -257,8 +258,7 @@ class CLITestV20PortJSON(test_cli20.CLITestV20Base):
             args.append("--fields")
             for field in fields_2:
                 args.append(field)
-        fields_1.extend(fields_2)
-        for field in fields_1:
+        for field in itertools.chain(fields_1, fields_2):
             if query:
                 query += "&fields=" + field
             else:
@@ -274,7 +274,10 @@ class CLITestV20PortJSON(test_cli20.CLITestV20Base):
         query = query and query + '&device_id=%s' or 'device_id=%s'
         path = getattr(self.client, resources + "_path")
         self.client.httpclient.request(
-            test_cli20.end_url(path, query % myid), 'GET',
+            test_cli20.MyUrlComparator(
+                test_cli20.end_url(path, query % myid),
+                self.client),
+            'GET',
             body=None,
             headers=mox.ContainsKeyValue('X-Auth-Token', test_cli20.TOKEN)
         ).AndReturn((test_cli20.MyResp(200), resstr))

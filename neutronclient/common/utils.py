@@ -17,8 +17,6 @@
 
 """Utilities and helper functions."""
 
-import datetime
-import json
 import logging
 import os
 import sys
@@ -33,46 +31,13 @@ from neutronclient.openstack.common import strutils
 def env(*vars, **kwargs):
     """Returns the first environment variable set.
 
-    if none are non-empty, defaults to '' or keyword arg default.
+    If none are non-empty, defaults to '' or keyword arg default.
     """
     for v in vars:
         value = os.environ.get(v)
         if value:
             return value
     return kwargs.get('default', '')
-
-
-def to_primitive(value):
-    if isinstance(value, list) or isinstance(value, tuple):
-        o = []
-        for v in value:
-            o.append(to_primitive(v))
-        return o
-    elif isinstance(value, dict):
-        o = {}
-        for k, v in six.iteritems(value):
-            o[k] = to_primitive(v)
-        return o
-    elif isinstance(value, datetime.datetime):
-        return str(value)
-    elif hasattr(value, 'iteritems'):
-        return to_primitive(dict(value.iteritems()))
-    elif hasattr(value, '__iter__'):
-        return to_primitive(list(value))
-    else:
-        return value
-
-
-def dumps(value, indent=None):
-    try:
-        return json.dumps(value, indent=indent)
-    except TypeError:
-        pass
-    return json.dumps(to_primitive(value))
-
-
-def loads(s):
-    return json.loads(s)
 
 
 def import_class(import_str):
@@ -87,7 +52,7 @@ def import_class(import_str):
 
 
 def get_client_class(api_name, version, version_map):
-    """Returns the client class for the requested API version
+    """Returns the client class for the requested API version.
 
     :param api_name: the name of the API, e.g. 'compute', 'image', etc
     :param version: the requested API version
@@ -106,7 +71,7 @@ def get_client_class(api_name, version, version_map):
     return import_class(client_path)
 
 
-def get_item_properties(item, fields, mixed_case_fields=[], formatters={}):
+def get_item_properties(item, fields, mixed_case_fields=(), formatters=None):
     """Return a tuple containing the item properties.
 
     :param item: a single item resource (e.g. Server, Tenant, etc)
@@ -115,6 +80,9 @@ def get_item_properties(item, fields, mixed_case_fields=[], formatters={}):
     :param formatters: dictionary mapping field names to callables
        to format the values
     """
+    if formatters is None:
+        formatters = {}
+
     row = []
 
     for field in fields:
@@ -138,22 +106,17 @@ def get_item_properties(item, fields, mixed_case_fields=[], formatters={}):
 def str2bool(strbool):
     if strbool is None:
         return None
-    else:
-        return strbool.lower() == 'true'
+    return strbool.lower() == 'true'
 
 
 def str2dict(strdict):
-        '''Convert key1=value1,key2=value2,... string into dictionary.
+    """Convert key1=value1,key2=value2,... string into dictionary.
 
-        :param strdict: key1=value1,key2=value2
-        '''
-        _info = {}
-        if not strdict:
-            return _info
-        for kv_str in strdict.split(","):
-            k, v = kv_str.split("=", 1)
-            _info.update({k: v})
-        return _info
+    :param strdict: key1=value1,key2=value2
+    """
+    if not strdict:
+        return {}
+    return dict([kv.split('=', 1) for kv in strdict.split(',')])
 
 
 def http_log_req(_logger, args, kwargs):
@@ -173,8 +136,8 @@ def http_log_req(_logger, args, kwargs):
 
     if 'body' in kwargs and kwargs['body']:
         string_parts.append(" -d '%s'" % (kwargs['body']))
-    string_parts = safe_encode_list(string_parts)
-    _logger.debug("\nREQ: %s\n", "".join(string_parts))
+    req = strutils.safe_encode("".join(string_parts))
+    _logger.debug("\nREQ: %s\n", req)
 
 
 def http_log_resp(_logger, resp, body):
@@ -187,13 +150,13 @@ def http_log_resp(_logger, resp, body):
 
 
 def _safe_encode_without_obj(data):
-    if isinstance(data, basestring):
+    if isinstance(data, six.string_types):
         return strutils.safe_encode(data)
     return data
 
 
 def safe_encode_list(data):
-    return map(_safe_encode_without_obj, data)
+    return list(map(_safe_encode_without_obj, data))
 
 
 def safe_encode_dict(data):
@@ -205,4 +168,4 @@ def safe_encode_dict(data):
             return (k, safe_encode_dict(v))
         return (k, _safe_encode_without_obj(v))
 
-    return dict(map(_encode_item, data.items()))
+    return dict(list(map(_encode_item, data.items())))
