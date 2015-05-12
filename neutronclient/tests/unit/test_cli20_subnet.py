@@ -34,9 +34,25 @@ class CLITestV20SubnetJSON(test_cli20.CLITestV20Base):
         name = 'myname'
         myid = 'myid'
         netid = 'netid'
-        cidr = 'cidrvalue'
+        cidr = '10.10.10.0/24'
         gateway = 'gatewayvalue'
         args = ['--gateway', gateway, netid, cidr]
+        position_names = ['ip_version', 'network_id', 'cidr', 'gateway_ip']
+        position_values = [4, netid, cidr, gateway]
+        self._test_create_resource(resource, cmd, name, myid, args,
+                                   position_names, position_values)
+
+    def test_create_subnet_network_cidr_seperated(self):
+        # For positional value, network_id and cidr can be separated.
+        """Create subnet: --gateway gateway netid cidr."""
+        resource = 'subnet'
+        cmd = subnet.CreateSubnet(test_cli20.MyApp(sys.stdout), None)
+        name = 'myname'
+        myid = 'myid'
+        netid = 'netid'
+        cidr = '10.10.10.0/24'
+        gateway = 'gatewayvalue'
+        args = [netid, '--gateway', gateway, cidr]
         position_names = ['ip_version', 'network_id', 'cidr', 'gateway_ip']
         position_values = [4, netid, cidr, gateway]
         self._test_create_resource(resource, cmd, name, myid, args,
@@ -68,30 +84,75 @@ class CLITestV20SubnetJSON(test_cli20.CLITestV20Base):
         args = ['--gateway', gateway, '--no-gateway', netid, cidr]
         position_names = ['ip_version', 'network_id', 'cidr', 'gateway_ip']
         position_values = [4, netid, cidr, None]
+        self.assertRaises(
+            SystemExit, self._test_create_resource,
+            resource, cmd, name, myid, args, position_names, position_values)
+
+    def _test_create_resource_and_catch_command_error(self, tested_args,
+                                                      should_fail,
+                                                      *args):
+        _j = lambda args: ' '.join(args)
         try:
-            self._test_create_resource(resource, cmd, name, myid, args,
-                                       position_names, position_values)
-        except Exception:
-            return
-        self.fail('No exception for bad gateway option')
+            self._test_create_resource(*args)
+        except exceptions.CommandError:
+            if not should_fail:
+                self.fail(
+                    'Unexpected exception raised for %s options' %
+                    _j(tested_args))
+            self.mox.UnsetStubs()
+        else:
+            if should_fail:
+                self.fail(
+                    'No exception for %s options' % _j(tested_args))
 
     def test_create_subnet_with_enable_and_disable_dhcp(self):
-        """Create sbunet: --enable-dhcp and --disable-dhcp."""
+        """Create subnet: --enable-dhcp and --disable-dhcp."""
         resource = 'subnet'
         cmd = subnet.CreateSubnet(test_cli20.MyApp(sys.stdout), None)
         name = 'myname'
         myid = 'myid'
         netid = 'netid'
         cidr = 'cidrvalue'
-        args = ['--enable-dhcp', '--disable-dhcp', netid, cidr]
-        position_names = ['ip_version', 'network_id', 'cidr', 'gateway_ip']
-        position_values = [4, netid, cidr, None]
-        try:
-            self._test_create_resource(resource, cmd, name, myid, args,
-                                       position_names, position_values)
-        except exceptions.CommandError:
-            return
-        self.fail('No exception for --enable-dhcp --disable-dhcp option')
+        position_names = ['ip_version', 'network_id', 'cidr', 'enable_dhcp']
+        # enable_dhcp value is appended later inside the loop
+        position_values = [4, netid, cidr]
+        for enable_dhcp_arg, should_fail in (
+                ('--enable-dhcp=False', False),
+                ('--enable-dhcp=True', True),
+                ('--enable-dhcp', True)
+        ):
+            tested_args = [enable_dhcp_arg, '--disable-dhcp']
+            args = tested_args + [netid, cidr]
+            pos_values = position_values + [should_fail]
+            self._test_create_resource_and_catch_command_error(
+                tested_args, should_fail,
+                resource, cmd, name, myid, args, position_names, pos_values)
+
+    def test_create_subnet_with_multiple_enable_dhcp(self):
+        """Create subnet with multiple --enable-dhcp arguments passed."""
+        resource = 'subnet'
+        cmd = subnet.CreateSubnet(test_cli20.MyApp(sys.stdout), None)
+        name = 'myname'
+        myid = 'myid'
+        netid = 'netid'
+        cidr = 'cidrvalue'
+        position_names = ['ip_version', 'network_id', 'cidr', 'enable_dhcp']
+        # enable_dhcp value is appended later inside the loop
+        position_values = [4, netid, cidr]
+
+        _ = 'UNUSED_MARKER'
+        for tested_args, should_fail, pos_value in (
+                (['--enable-dhcp', '--enable-dhcp=True'], False, True),
+                (['--enable-dhcp', '--enable-dhcp=False'], True, _),
+                (['--enable-dhcp=False', '--enable-dhcp'], True, _),
+                (['--enable-dhcp=True', '--enable-dhcp=False'], True, _),
+                (['--enable-dhcp=False', '--enable-dhcp=True'], True, _)
+        ):
+            args = tested_args + [netid, cidr]
+            pos_values = position_values + [pos_value]
+            self._test_create_resource_and_catch_command_error(
+                tested_args, should_fail,
+                resource, cmd, name, myid, args, position_names, pos_values)
 
     def test_create_subnet_tenant(self):
         """Create subnet: --tenant_id tenantid netid cidr."""
@@ -425,6 +486,44 @@ class CLITestV20SubnetJSON(test_cli20.CLITestV20Base):
         position_names = ['ip_version', 'ipv6_address_mode',
                           'network_id', 'cidr']
         position_values = [4, None, netid, cidr]
+        self.assertRaises(exceptions.CommandError, self._test_create_resource,
+                          resource, cmd, name, myid, args, position_names,
+                          position_values, tenant_id='tenantid')
+
+    def test_create_subnet_with_subnetpool_ipv4_with_cidr_wildcard(self):
+        resource = 'subnet'
+        cmd = subnet.CreateSubnet(test_cli20.MyApp(sys.stdout), None)
+        name = 'myname'
+        myid = 'myid'
+        netid = 'netid'
+        cidr = 'cidrwildcard'
+        args = ['--tenant_id', 'tenantid',
+                '--ip-version', '4',
+                '--ipv6-address-mode', 'slaac',
+                '--subnetpool', 'subnetpool_id',
+                netid, cidr]
+        position_names = ['ip_version', 'ipv6_address_mode',
+                          'network_id', 'subnetpool_id', 'cidr']
+        position_values = [4, None, netid, 'subnetpool_id', cidr]
+        self.assertRaises(exceptions.CommandError, self._test_create_resource,
+                          resource, cmd, name, myid, args, position_names,
+                          position_values, tenant_id='tenantid')
+
+    def test_create_subnet_with_subnetpool_ipv4_with_prefixlen(self):
+        resource = 'subnet'
+        cmd = subnet.CreateSubnet(test_cli20.MyApp(sys.stdout), None)
+        name = 'myname'
+        myid = 'myid'
+        netid = 'netid'
+        args = ['--tenant_id', 'tenantid',
+                '--ip-version', '4',
+                '--ipv6-address-mode', 'slaac',
+                '--subnetpool', 'subnetpool_id',
+                '--prefixlen', '31',
+                netid]
+        position_names = ['ip_version', 'ipv6_address_mode',
+                          'network_id', 'subnetpool_id']
+        position_values = [4, None, netid, 'subnetpool_id']
         self.assertRaises(exceptions.CommandError, self._test_create_resource,
                           resource, cmd, name, myid, args, position_names,
                           position_values, tenant_id='tenantid')

@@ -24,13 +24,13 @@ import re
 from cliff.formatters import table
 from cliff import lister
 from cliff import show
+from oslo_serialization import jsonutils
 import six
 
 from neutronclient.common import command
 from neutronclient.common import exceptions
 from neutronclient.common import utils
-from neutronclient.openstack.common.gettextutils import _
-from neutronclient.openstack.common import jsonutils
+from neutronclient.i18n import _
 
 HEX_ELEM = '[0-9A-Fa-f]'
 UUID_PATTERN = '-'.join([HEX_ELEM + '{8}', HEX_ELEM + '{4}',
@@ -283,10 +283,14 @@ def parse_args_to_dict(values_specs):
             # All others are value items
             # Make sure '--' occurs first and allow minus value
             if (not current_item or '=' in current_item or
-                _item.startswith('-') and not is_number(_item)):
+                    _item.startswith('-') and not is_number(_item)):
                 raise exceptions.CommandError(
                     _("Invalid values_specs %s") % ' '.join(values_specs))
             _value_number += 1
+
+        if _item.startswith('---'):
+            raise exceptions.CommandError(
+                _("Invalid values_specs %s") % ' '.join(values_specs))
 
         _values_specs.append(_item)
 
@@ -328,7 +332,7 @@ def _merge_args(qCmd, parsed_args, _extra_values, value_specs):
                 if isinstance(arg_value, list):
                     if value and isinstance(value, list):
                         if (not arg_value or
-                            type(arg_value[0]) == type(value[0])):
+                                type(arg_value[0]) == type(value[0])):
                             arg_value.extend(value)
                             _extra_values.pop(key)
 
@@ -385,8 +389,8 @@ class NeutronCommand(command.OpenStackCommand):
         # NOTE(markmcclain): This is no longer supported in cliff version 1.5.2
         # see https://bugs.launchpad.net/python-neutronclient/+bug/1265926
 
-        #if hasattr(self, 'formatters'):
-            #self.formatters['table'] = TableFormater()
+        # if hasattr(self, 'formatters'):
+        #     self.formatters['table'] = TableFormater()
 
     @property
     def cmd_resource(self):
@@ -411,7 +415,11 @@ class NeutronCommand(command.OpenStackCommand):
 
         return parser
 
+    def cleanup_output_data(self, data):
+        pass
+
     def format_output_data(self, data):
+        self.cleanup_output_data(data)
         # Modify data to make it more readable
         if self.resource in data:
             for k, v in six.iteritems(data[self.resource]):
@@ -427,6 +435,9 @@ class NeutronCommand(command.OpenStackCommand):
                     data[self.resource][k] = ''
 
     def add_known_arguments(self, parser):
+        pass
+
+    def set_extra_attrs(self, parsed_args):
         pass
 
     def args2body(self, parsed_args):
@@ -452,6 +463,7 @@ class CreateCommand(NeutronCommand, show.ShowOne):
 
     def get_data(self, parsed_args):
         self.log.debug('get_data(%s)' % parsed_args)
+        self.set_extra_attrs(parsed_args)
         neutron_client = self.get_client()
         neutron_client.format = parsed_args.request_format
         _extra_values = parse_args_to_dict(self.values_specs)
@@ -484,14 +496,19 @@ class UpdateCommand(NeutronCommand):
 
     def get_parser(self, prog_name):
         parser = super(UpdateCommand, self).get_parser(prog_name)
+        if self.allow_names:
+            help_str = _('ID or name of %s to update.')
+        else:
+            help_str = _('ID of %s to update.')
         parser.add_argument(
             'id', metavar=self.resource.upper(),
-            help=_('ID or name of %s to update.') % self.resource)
+            help=help_str % self.resource)
         self.add_known_arguments(parser)
         return parser
 
     def run(self, parsed_args):
         self.log.debug('run(%s)', parsed_args)
+        self.set_extra_attrs(parsed_args)
         neutron_client = self.get_client()
         neutron_client.format = parsed_args.request_format
         _extra_values = parse_args_to_dict(self.values_specs)
@@ -509,7 +526,7 @@ class UpdateCommand(NeutronCommand):
         if self.allow_names:
             _id = find_resourceid_by_name_or_id(
                 neutron_client, self.resource, parsed_args.id,
-                cmd_resource=self.cmd_resource)
+                cmd_resource=self.cmd_resource, parent_id=self.parent_id)
         else:
             _id = find_resourceid_by_id(
                 neutron_client, self.resource, parsed_args.id,
@@ -542,10 +559,12 @@ class DeleteCommand(NeutronCommand):
         parser.add_argument(
             'id', metavar=self.resource.upper(),
             help=help_str % self.resource)
+        self.add_known_arguments(parser)
         return parser
 
     def run(self, parsed_args):
         self.log.debug('run(%s)', parsed_args)
+        self.set_extra_attrs(parsed_args)
         neutron_client = self.get_client()
         neutron_client.format = parsed_args.request_format
         obj_deleter = getattr(neutron_client,
@@ -589,6 +608,7 @@ class ListCommand(NeutronCommand, lister.Lister):
             add_pagination_argument(parser)
         if self.sorting_support:
             add_sorting_argument(parser)
+        self.add_known_arguments(parser)
         return parser
 
     def args2search_opts(self, parsed_args):
@@ -660,12 +680,18 @@ class ListCommand(NeutronCommand, lister.Lister):
             # both list_columns and returned resource.
             # Also Keep their order the same as in list_columns
             _columns = [x for x in self.list_columns if x in _columns]
+
+        formatters = self._formatters
+        if hasattr(self, '_formatters_csv') and parsed_args.formatter == 'csv':
+            formatters = self._formatters_csv
+
         return (_columns, (utils.get_item_properties(
-            s, _columns, formatters=self._formatters, )
+            s, _columns, formatters=formatters, )
             for s in info), )
 
     def get_data(self, parsed_args):
         self.log.debug('get_data(%s)', parsed_args)
+        self.set_extra_attrs(parsed_args)
         data = self.retrieve_list(parsed_args)
         self.extend_list(data, parsed_args)
         return self.setup_columns(data, parsed_args)
@@ -688,10 +714,12 @@ class ShowCommand(NeutronCommand, show.ShowOne):
         parser.add_argument(
             'id', metavar=self.resource.upper(),
             help=help_str % self.resource)
+        self.add_known_arguments(parser)
         return parser
 
     def get_data(self, parsed_args):
         self.log.debug('get_data(%s)', parsed_args)
+        self.set_extra_attrs(parsed_args)
         neutron_client = self.get_client()
         neutron_client.format = parsed_args.request_format
 

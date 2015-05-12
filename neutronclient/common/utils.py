@@ -17,15 +17,17 @@
 
 """Utilities and helper functions."""
 
+import argparse
 import logging
+import netaddr
 import os
-import sys
 
+from oslo_utils import encodeutils
+from oslo_utils import importutils
 import six
 
-from neutronclient.common import _
 from neutronclient.common import exceptions
-from neutronclient.openstack.common import strutils
+from neutronclient.i18n import _
 
 
 def env(*vars, **kwargs):
@@ -38,17 +40,6 @@ def env(*vars, **kwargs):
         if value:
             return value
     return kwargs.get('default', '')
-
-
-def import_class(import_str):
-    """Returns a class from a string including module and class.
-
-    :param import_str: a string representation of the class name
-    :rtype: the requested class
-    """
-    mod_str, _sep, class_str = import_str.rpartition('.')
-    __import__(mod_str)
-    return getattr(sys.modules[mod_str], class_str)
 
 
 def get_client_class(api_name, version, version_map):
@@ -68,7 +59,7 @@ def get_client_class(api_name, version, version_map):
                      'map_keys': ', '.join(version_map.keys())}
         raise exceptions.UnsupportedVersion(msg)
 
-    return import_class(client_path)
+    return importutils.import_class(client_path)
 
 
 def get_item_properties(item, fields, mixed_case_fields=(), formatters=None):
@@ -136,7 +127,7 @@ def http_log_req(_logger, args, kwargs):
 
     if 'body' in kwargs and kwargs['body']:
         string_parts.append(" -d '%s'" % (kwargs['body']))
-    req = strutils.safe_encode("".join(string_parts))
+    req = encodeutils.safe_encode("".join(string_parts))
     _logger.debug("\nREQ: %s\n", req)
 
 
@@ -151,7 +142,7 @@ def http_log_resp(_logger, resp, body):
 
 def _safe_encode_without_obj(data):
     if isinstance(data, six.string_types):
-        return strutils.safe_encode(data)
+        return encodeutils.safe_encode(data)
     return data
 
 
@@ -169,3 +160,23 @@ def safe_encode_dict(data):
         return (k, _safe_encode_without_obj(v))
 
     return dict(list(map(_encode_item, data.items())))
+
+
+def add_boolean_argument(parser, name, **kwargs):
+    for keyword in ('metavar', 'choices'):
+        kwargs.pop(keyword, None)
+    default = kwargs.pop('default', argparse.SUPPRESS)
+    parser.add_argument(
+        name,
+        metavar='{True,False}',
+        choices=['True', 'true', 'False', 'false'],
+        default=default,
+        **kwargs)
+
+
+def is_valid_cidr(cidr):
+    try:
+        netaddr.IPNetwork(cidr)
+        return True
+    except Exception:
+        return False

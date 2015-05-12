@@ -17,8 +17,8 @@
 from __future__ import print_function
 
 from neutronclient.common import utils
+from neutronclient.i18n import _
 from neutronclient.neutron import v2_0 as neutronV20
-from neutronclient.openstack.common.gettextutils import _
 
 GW_RESOURCE = 'network_gateway'
 DEV_RESOURCE = 'gateway_device'
@@ -169,7 +169,7 @@ class CreateNetworkGateway(neutronV20.CreateCommand):
             '--device', metavar='id=ID,interface_name=NAME_OR_ID',
             action='append',
             help=_('Device info for this gateway. You can repeat this '
-            'option for multiple devices for HA gateways.'))
+                   'option for multiple devices for HA gateways.'))
 
     def args2body(self, parsed_args):
         body = {self.resource: {

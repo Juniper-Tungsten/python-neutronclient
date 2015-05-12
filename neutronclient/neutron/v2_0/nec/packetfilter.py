@@ -14,9 +14,10 @@
 #    under the License.
 
 from neutronclient.common import exceptions
+from neutronclient.common import utils
 from neutronclient.common import validators
+from neutronclient.i18n import _
 from neutronclient.neutron import v2_0 as neutronV20
-from neutronclient.openstack.common.gettextutils import _
 
 
 class ListPacketFilter(neutronV20.ListCommand):
@@ -70,8 +71,8 @@ class PacketFilterOptionMixin(object):
                 dest='admin_state', action='store_false',
                 help=_('Set Admin State Up to false'))
         else:
-            parser.add_argument(
-                '--admin-state', choices=['True', 'False'],
+            utils.add_boolean_argument(
+                parser, '--admin-state',
                 help=_('Set a value of Admin State Up'))
 
         parser.add_argument(
@@ -206,7 +207,7 @@ class UpdatePacketFilter(PacketFilterOptionMixin,
         self.validate_fields(parsed_args)
 
         body = {}
-        if parsed_args.admin_state:
+        if hasattr(parsed_args, 'admin_state'):
             body['admin_state_up'] = (parsed_args.admin_state == 'True')
 
         # fields which allows None
@@ -224,7 +225,7 @@ class UpdatePacketFilter(PacketFilterOptionMixin,
 
         for attr in ['action', 'priority', 'name']:
             if (hasattr(parsed_args, attr) and
-                getattr(parsed_args, attr) is not None):
+                    getattr(parsed_args, attr) is not None):
                 body[attr] = getattr(parsed_args, attr)
 
         return {self.resource: body}

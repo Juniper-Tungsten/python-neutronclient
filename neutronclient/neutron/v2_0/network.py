@@ -17,8 +17,9 @@
 import argparse
 
 from neutronclient.common import exceptions
+from neutronclient.common import utils
+from neutronclient.i18n import _
 from neutronclient.neutron import v2_0 as neutronV20
-from neutronclient.openstack.common.gettextutils import _
 
 
 def _format_subnets(network):
@@ -120,6 +121,31 @@ class CreateNetwork(neutronV20.CreateCommand):
             help=_('Set the network as shared.'),
             default=argparse.SUPPRESS)
         parser.add_argument(
+            '--router:external',
+            action='store_true',
+            help=_('Set network as external, it is only available for admin'),
+            default=argparse.SUPPRESS)
+        parser.add_argument(
+            '--provider:network_type',
+            metavar='<network_type>',
+            help=_('The physical mechanism by which the virtual network'
+                   ' is implemented.'))
+        parser.add_argument(
+            '--provider:physical_network',
+            metavar='<physical_network_name>',
+            help=_('Name of the physical network over which the virtual'
+                   ' network is implemented.'))
+        parser.add_argument(
+            '--provider:segmentation_id',
+            metavar='<segmentation_id>',
+            help=_('VLAN ID for VLAN networks or tunnel-id for GRE/VXLAN'
+                   ' networks.'))
+        utils.add_boolean_argument(
+            parser,
+            '--vlan-transparent',
+            default=argparse.SUPPRESS,
+            help=_('Create a vlan transparent network.'))
+        parser.add_argument(
             'name', metavar='NAME',
             help=_('Name of network to create.'))
 
@@ -128,7 +154,11 @@ class CreateNetwork(neutronV20.CreateCommand):
             'name': parsed_args.name,
             'admin_state_up': parsed_args.admin_state}, }
         neutronV20.update_dict(parsed_args, body['network'],
-                               ['shared', 'tenant_id'])
+                               ['shared', 'tenant_id', 'router:external',
+                                'vlan_transparent',
+                                'provider:network_type',
+                                'provider:physical_network',
+                                'provider:segmentation_id'])
         return body
 
 
