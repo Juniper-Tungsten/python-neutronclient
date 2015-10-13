@@ -288,6 +288,68 @@ class CLITestV20PortJSON(test_cli20.CLITestV20Base):
         self._test_create_resource(resource, cmd, name, myid, args,
                                    position_names, position_values)
 
+    def test_create_port_with_qos_policy(self):
+        """Create port: --qos-policy mypolicy."""
+        resource = 'port'
+        cmd = port.CreatePort(test_cli20.MyApp(sys.stdout), None)
+        name = 'myname'
+        myid = 'myid'
+        netid = 'netid'
+        qos_policy_name = 'mypolicy'
+        args = [netid, '--qos-policy', qos_policy_name]
+        position_names = ['network_id', 'qos_policy_id']
+        position_values = [netid, qos_policy_name]
+        self._test_create_resource(resource, cmd, name, myid, args,
+                                   position_names, position_values)
+
+    def test_create_port_with_allowed_address_pair_ipaddr(self):
+        """Create port:
+        --allowed-address-pair ip_address=addr0
+        --allowed-address-pair ip_address=addr1
+        """
+        resource = 'port'
+        cmd = port.CreatePort(test_cli20.MyApp(sys.stdout), None)
+        name = 'myname'
+        myid = 'myid'
+        netid = 'netid'
+        pairs = [{'ip_address': '123.123.123.123'},
+                 {'ip_address': '123.123.123.45'}]
+        args = [netid,
+                '--allowed-address-pair',
+                'ip_address=123.123.123.123',
+                '--allowed-address-pair',
+                'ip_address=123.123.123.45']
+        position_names = ['network_id', 'allowed_address_pairs']
+        position_values = [netid, pairs]
+        position_values.extend([netid])
+        self._test_create_resource(resource, cmd, name, myid, args,
+                                   position_names, position_values)
+
+    def test_create_port_with_allowed_address_pair(self):
+        """Create port:
+        --allowed-address-pair ip_address=addr0,mac_address=mac0
+        --allowed-address-pair ip_address=addr1,mac_address=mac1
+        """
+        resource = 'port'
+        cmd = port.CreatePort(test_cli20.MyApp(sys.stdout), None)
+        name = 'myname'
+        myid = 'myid'
+        netid = 'netid'
+        pairs = [{'ip_address': '123.123.123.123',
+                  'mac_address': '10:00:00:00:00:00'},
+                 {'ip_address': '123.123.123.45',
+                  'mac_address': '10:00:00:00:00:01'}]
+        args = [netid,
+                '--allowed-address-pair',
+                'ip_address=123.123.123.123,mac_address=10:00:00:00:00:00',
+                '--allowed-address-pair',
+                'ip_address=123.123.123.45,mac_address=10:00:00:00:00:01']
+        position_names = ['network_id', 'allowed_address_pairs']
+        position_values = [netid, pairs]
+        position_values.extend([netid])
+        self._test_create_resource(resource, cmd, name, myid, args,
+                                   position_names, position_values)
+
     def test_list_ports(self):
         """List ports: -D."""
         resources = "ports"
@@ -539,6 +601,22 @@ class CLITestV20PortJSON(test_cli20.CLITestV20Base):
         cmd = port.UpdatePort(test_cli20.MyApp(sys.stdout), None)
         self._test_update_resource(resource, cmd, myid, args, updatedfields)
 
+    def test_update_port_with_qos_policy(self):
+        """Update port: myid --qos-policy mypolicy."""
+        resource = 'port'
+        cmd = port.UpdatePort(test_cli20.MyApp(sys.stdout), None)
+        self._test_update_resource(resource, cmd, 'myid',
+                                   ['myid', '--qos-policy', 'mypolicy'],
+                                   {'qos_policy_id': 'mypolicy', })
+
+    def test_update_port_with_no_qos_policy(self):
+        """Update port: myid --no-qos-policy."""
+        resource = 'port'
+        cmd = port.UpdatePort(test_cli20.MyApp(sys.stdout), None)
+        self._test_update_resource(resource, cmd, 'myid',
+                                   ['myid', '--no-qos-policy'],
+                                   {'qos_policy_id': None, })
+
     def test_delete_extra_dhcp_opts_from_port(self):
         resource = 'port'
         myid = 'myid'
@@ -568,6 +646,55 @@ class CLITestV20PortJSON(test_cli20.CLITestV20Base):
         self._test_update_resource(resource, cmd, 'myid',
                                    ['--no-security-groups', 'myid'],
                                    {'security_groups': []})
+
+    def test_update_port_allowed_address_pair_ipaddr(self):
+        """Update port(ip_address only):
+        --allowed-address-pairs ip_address=addr0
+        --allowed-address-pairs ip_address=addr1
+        """
+        import sys
+        resource = 'port'
+        cmd = port.UpdatePort(test_cli20.MyApp(sys.stdout), None)
+        myid = 'myid'
+        pairs = [{'ip_address': '123.123.123.123'},
+                 {'ip_address': '123.123.123.45'}]
+        args = [myid,
+                '--allowed-address-pair',
+                'ip_address=123.123.123.123',
+                '--allowed-address-pair',
+                'ip_address=123.123.123.45']
+        updatefields = {'allowed_address_pairs': pairs}
+        self._test_update_resource(resource, cmd, myid, args, updatefields)
+
+    def test_update_port_allowed_address_pair(self):
+        """Update port:
+        --allowed-address-pair
+        ip_address=addr0,mac_address=mac0
+        --allowed-address-pair
+        ip_address_addr1,mac_address=mac1
+        """
+        resource = 'port'
+        cmd = port.UpdatePort(test_cli20.MyApp(sys.stdout), None)
+        myid = 'myid'
+        pairs = [{'ip_address': '123.123.123.123',
+                  'mac_address': '10:00:00:00:00:00'},
+                 {'ip_address': '123.123.123.45',
+                  'mac_address': '10:00:00:00:00:01'}]
+        args = [myid,
+                '--allowed-address-pair',
+                'ip_address=123.123.123.123,mac_address=10:00:00:00:00:00',
+                '--allowed-address-pair',
+                'ip_address=123.123.123.45,mac_address=10:00:00:00:00:01']
+        updatefields = {'allowed_address_pairs': pairs}
+        self._test_update_resource(resource, cmd, myid, args, updatefields)
+
+    def test_update_port_allowed_address_pairs_off(self):
+        """Update port: --no-allowed-address-pairs."""
+        resource = 'port'
+        cmd = port.UpdatePort(test_cli20.MyApp(sys.stdout), None)
+        self._test_update_resource(resource, cmd, 'myid',
+                                   ['--no-allowed-address-pairs', 'myid'],
+                                   {'allowed_address_pairs': []})
 
     def test_show_port(self):
         """Show port: --fields id --fields name myid."""

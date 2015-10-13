@@ -75,10 +75,10 @@ class CreateRouter(neutronV20.CreateCommand):
             help=_('Create a highly available router.'))
 
     def args2body(self, parsed_args):
-        body = {self.resource: {'admin_state_up': parsed_args.admin_state}}
-        neutronV20.update_dict(parsed_args, body[self.resource],
+        body = {'admin_state_up': parsed_args.admin_state}
+        neutronV20.update_dict(parsed_args, body,
                                ['name', 'tenant_id', 'distributed', 'ha'])
-        return body
+        return {self.resource: body}
 
 
 class DeleteRouter(neutronV20.DeleteCommand):
@@ -91,6 +91,30 @@ class UpdateRouter(neutronV20.UpdateCommand):
     """Update router's information."""
 
     resource = 'router'
+
+    def add_known_arguments(self, parser):
+        parser.add_argument(
+            '--name',
+            help=_('Name of this router.'))
+        utils.add_boolean_argument(
+            parser, '--admin-state-up', dest='admin_state',
+            help=_('Specify the administrative state of the router'
+                   ' (True meaning "Up")'))
+        utils.add_boolean_argument(
+            parser, '--admin_state_up', dest='admin_state',
+            help=argparse.SUPPRESS)
+        utils.add_boolean_argument(
+            parser, '--distributed', dest='distributed',
+            help=_('True means this router should operate in'
+                   ' distributed mode.'))
+
+    def args2body(self, parsed_args):
+        body = {}
+        if hasattr(parsed_args, 'admin_state'):
+            body['admin_state_up'] = parsed_args.admin_state
+        neutronV20.update_dict(parsed_args, body,
+                               ['name', 'distributed'])
+        return {self.resource: body}
 
 
 class RouterInterfaceCommand(neutronV20.NeutronCommand):

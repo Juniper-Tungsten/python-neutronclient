@@ -64,14 +64,15 @@ class CreateListener(neutronV20.CreateCommand):
             '--name',
             help=_('The name of the listener.'))
         parser.add_argument(
-            '--default-tls-container-id',
-            dest='default_tls_container_id',
-            help=_('Default TLS container ID to retrieve TLS information.'))
+            '--default-tls-container-ref',
+            dest='default_tls_container_ref',
+            help=_('Default TLS container reference'
+                   ' to retrieve TLS information.'))
         parser.add_argument(
-            '--sni-container-ids',
-            dest='sni_container_ids',
+            '--sni-container-refs',
+            dest='sni_container_refs',
             nargs='+',
-            help=_('List of TLS container IDs for SNI.'))
+            help=_('List of TLS container references for SNI.'))
         parser.add_argument(
             '--loadbalancer',
             required=True,
@@ -93,21 +94,18 @@ class CreateListener(neutronV20.CreateCommand):
             parsed_args.loadbalancer = _get_loadbalancer_id(
                 self.get_client(),
                 parsed_args.loadbalancer)
-        body = {
-            self.resource: {
-                'loadbalancer_id': parsed_args.loadbalancer,
+        body = {'loadbalancer_id': parsed_args.loadbalancer,
                 'protocol': parsed_args.protocol,
                 'protocol_port': parsed_args.protocol_port,
-                'admin_state_up': parsed_args.admin_state,
-            },
-        }
+                'admin_state_up': parsed_args.admin_state}
 
-        neutronV20.update_dict(parsed_args, body[self.resource],
+        neutronV20.update_dict(parsed_args, body,
                                ['connection-limit', 'description',
                                 'loadbalancer_id', 'name',
-                                'default_tls_container_id',
-                                'sni_container_ids'])
-        return body
+                                'default_tls_container_ref',
+                                'sni_container_refs',
+                                'tenant_id'])
+        return {self.resource: body}
 
 
 class UpdateListener(neutronV20.UpdateCommand):

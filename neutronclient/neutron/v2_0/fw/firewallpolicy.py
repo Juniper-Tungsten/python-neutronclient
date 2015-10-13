@@ -45,13 +45,13 @@ def common_args2body(client, parsed_args):
             _firewall_rules.append(
                 neutronv20.find_resourceid_by_name_or_id(
                     client, 'firewall_rule', f))
-        body = {'firewall_policy': {'firewall_rules': _firewall_rules}}
+        body = {'firewall_rules': _firewall_rules}
     else:
-        body = {'firewall_policy': {}}
-    neutronv20.update_dict(parsed_args, body['firewall_policy'],
+        body = {}
+    neutronv20.update_dict(parsed_args, body,
                            ['name', 'description', 'shared',
                             'audited', 'tenant_id'])
-    return body
+    return {'firewall_policy': body}
 
 
 class ListFirewallPolicy(neutronv20.ListCommand):
@@ -149,7 +149,6 @@ class FirewallPolicyInsertRule(neutronv20.UpdateCommand):
         body = {'firewall_rule_id': _rule,
                 'insert_before': _insert_before,
                 'insert_after': _insert_after}
-        neutronv20.update_dict(parsed_args, body, [])
         return body
 
     def get_parser(self, prog_name):
@@ -197,7 +196,6 @@ class FirewallPolicyRemoveRule(neutronv20.UpdateCommand):
                 self.get_client(), 'firewall_rule',
                 parsed_args.firewall_rule_id)
         body = {'firewall_rule_id': _rule}
-        neutronv20.update_dict(parsed_args, body, [])
         return body
 
     def get_parser(self, prog_name):

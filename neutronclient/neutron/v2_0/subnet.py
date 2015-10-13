@@ -102,38 +102,33 @@ def add_updatable_arguments(parser):
         help=argparse.SUPPRESS)
 
 
-def updatable_args2body(parsed_args, body, for_create=True):
+def updatable_args2body(parsed_args, body, for_create=True, ip_version=None):
     if parsed_args.disable_dhcp and parsed_args.enable_dhcp:
         raise exceptions.CommandError(_(
             "You cannot enable and disable DHCP at the same time."))
 
+    neutronV20.update_dict(parsed_args, body,
+                           ['name', 'allocation_pools',
+                            'host_routes', 'dns_nameservers'])
     if parsed_args.no_gateway:
-        body['subnet'].update({'gateway_ip': None})
+        body['gateway_ip'] = None
     elif parsed_args.gateway:
-        body['subnet'].update({'gateway_ip': parsed_args.gateway})
-    if parsed_args.name:
-        body['subnet'].update({'name': parsed_args.name})
+        body['gateway_ip'] = parsed_args.gateway
     if parsed_args.disable_dhcp:
-        body['subnet'].update({'enable_dhcp': False})
+        body['enable_dhcp'] = False
     if parsed_args.enable_dhcp:
-        body['subnet'].update({'enable_dhcp': True})
-    if parsed_args.allocation_pools:
-        body['subnet']['allocation_pools'] = parsed_args.allocation_pools
-    if parsed_args.host_routes:
-        body['subnet']['host_routes'] = parsed_args.host_routes
-    if parsed_args.dns_nameservers:
-        body['subnet']['dns_nameservers'] = parsed_args.dns_nameservers
+        body['enable_dhcp'] = True
     if for_create and parsed_args.ipv6_ra_mode:
-        if parsed_args.ip_version == 4:
+        if ip_version == 4:
             raise exceptions.CommandError(_("--ipv6-ra-mode is invalid "
                                             "when --ip-version is 4"))
-        body['subnet']['ipv6_ra_mode'] = parsed_args.ipv6_ra_mode
+        body['ipv6_ra_mode'] = parsed_args.ipv6_ra_mode
     if for_create and parsed_args.ipv6_address_mode:
-        if parsed_args.ip_version == 4:
+        if ip_version == 4:
             raise exceptions.CommandError(_("--ipv6-address-mode is "
                                             "invalid when --ip-version "
                                             "is 4"))
-        body['subnet']['ipv6_address_mode'] = parsed_args.ipv6_address_mode
+        body['ipv6_address_mode'] = parsed_args.ipv6_address_mode
 
 
 class ListSubnet(neutronV20.ListCommand):
@@ -165,7 +160,10 @@ class CreateSubnet(neutronV20.CreateCommand):
             '--ip-version',
             type=int,
             default=4, choices=[4, 6],
-            help=_('IP version to use, default is 4.'))
+            help=_('IP version to use, default is 4. '
+                   'Note that when subnetpool is specified, '
+                   'IP version is determined from the subnetpool '
+                   'and this option is ignored.'))
         parser.add_argument(
             '--ip_version',
             type=int,
@@ -196,37 +194,45 @@ class CreateSubnet(neutronV20.CreateCommand):
     def args2body(self, parsed_args):
         _network_id = neutronV20.find_resourceid_by_name_or_id(
             self.get_client(), 'network', parsed_args.network_id)
-        body = {'subnet': {'network_id': _network_id,
-                           'ip_version': parsed_args.ip_version, }, }
+        body = {'network_id': _network_id}
+
+        if parsed_args.prefixlen:
+            body['prefixlen'] = parsed_args.prefixlen
+        ip_version = parsed_args.ip_version
+        if parsed_args.subnetpool:
+            if parsed_args.subnetpool == 'None':
+                _subnetpool_id = None
+            else:
+                _subnetpool = neutronV20.find_resource_by_name_or_id(
+                    self.get_client(), 'subnetpool', parsed_args.subnetpool)
+                _subnetpool_id = _subnetpool['id']
+                # Now that we have the pool_id - let's just have a check on the
+                # ip version used in the pool
+                ip_version = _subnetpool['ip_version']
+            body['subnetpool_id'] = _subnetpool_id
+
+        # IP version needs to be set as IP version can be
+        # determined by subnetpool.
+        body['ip_version'] = ip_version
 
         if parsed_args.cidr:
             # With subnetpool, cidr is now optional for creating subnet.
             cidr = parsed_args.cidr
-            body['subnet'].update({'cidr': cidr})
-            unusable_cidr = '/32' if parsed_args.ip_version == 4 else '/128'
+            body['cidr'] = cidr
+            unusable_cidr = '/32' if ip_version == 4 else '/128'
             if cidr.endswith(unusable_cidr):
                 self.log.warning(_("An IPv%(ip)d subnet with a %(cidr)s CIDR "
                                    "will have only one usable IP address so "
                                    "the device attached to it will not have "
                                    "any IP connectivity.")
-                                 % {"ip": parsed_args.ip_version,
+                                 % {"ip": ip_version,
                                     "cidr": unusable_cidr})
 
-        if parsed_args.prefixlen:
-            body['subnet'].update({'prefixlen': parsed_args.prefixlen})
-        if parsed_args.subnetpool:
-            if parsed_args.subnetpool == 'None':
-                _subnetpool_id = None
-            else:
-                _subnetpool_id = neutronV20.find_resourceid_by_name_or_id(
-                    self.get_client(), 'subnetpool', parsed_args.subnetpool)
-            body['subnet'].update({'subnetpool_id': _subnetpool_id})
-
-        updatable_args2body(parsed_args, body)
+        updatable_args2body(parsed_args, body, ip_version=ip_version)
         if parsed_args.tenant_id:
-            body['subnet'].update({'tenant_id': parsed_args.tenant_id})
+            body['tenant_id'] = parsed_args.tenant_id
 
-        return body
+        return {'subnet': body}
 
 
 class DeleteSubnet(neutronV20.DeleteCommand):
@@ -244,6 +250,6 @@ class UpdateSubnet(neutronV20.UpdateCommand):
         add_updatable_arguments(parser)
 
     def args2body(self, parsed_args):
-        body = {'subnet': {}}
+        body = {}
         updatable_args2body(parsed_args, body, for_create=False)
-        return body
+        return {'subnet': body}

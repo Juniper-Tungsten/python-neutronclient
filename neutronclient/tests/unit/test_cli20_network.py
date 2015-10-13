@@ -103,20 +103,6 @@ class CLITestV20NetworkJSON(test_cli20.CLITestV20Base):
                                    position_names, position_values,
                                    tags=['a', 'b'])
 
-    def test_create_network_external(self):
-        """Create net: --router:external myname."""
-        resource = 'network'
-        cmd = network.CreateNetwork(test_cli20.MyApp(sys.stdout), None)
-        name = 'myname'
-        myid = 'myid'
-        args = [name, '--router:external']
-        position_names = ['name', ]
-        position_values = [name, ]
-        external = {'router:external': True}
-        self._test_create_resource(resource, cmd, name, myid, args,
-                                   position_names, position_values,
-                                   **external)
-
     def test_create_network_state(self):
         """Create net: --admin_state_down myname."""
         resource = 'network'
@@ -149,6 +135,19 @@ class CLITestV20NetworkJSON(test_cli20.CLITestV20Base):
         self._test_create_resource(resource, cmd, name, myid, args,
                                    position_names, position_values,
                                    **vlantrans)
+
+    def test_create_network_with_qos_policy(self):
+        """Create net: --qos-policy mypolicy."""
+        resource = 'network'
+        cmd = network.CreateNetwork(test_cli20.MyApp(sys.stdout), None)
+        name = 'myname'
+        myid = 'myid'
+        qos_policy_name = 'mypolicy'
+        args = [name, '--qos-policy', qos_policy_name]
+        position_names = ['name', 'qos_policy_id']
+        position_values = [name, qos_policy_name]
+        self._test_create_resource(resource, cmd, name, myid, args,
+                                   position_names, position_values)
 
     def test_list_nets_empty_with_column(self):
         resources = "networks"
@@ -282,11 +281,11 @@ class CLITestV20NetworkJSON(test_cli20.CLITestV20Base):
         self.mox.VerifyAll()
         self.mox.UnsetStubs()
         _result = [x for x in result[1]]
-        self.assertEqual(len(_result), len(expected))
+        self.assertEqual(len(expected), len(_result))
         for res, exp in zip(_result, expected):
-            self.assertEqual(len(res), len(exp))
-            for a, b in zip(res, exp):
-                self.assertEqual(a, b)
+            self.assertEqual(len(exp), len(res))
+            for obsrvd, expctd in zip(res, exp):
+                self.assertEqual(expctd, obsrvd)
 
     def test_list_nets_extend_subnets(self):
         data = [{'id': 'netid1', 'name': 'net1', 'subnets': ['mysubid1']},
@@ -499,6 +498,22 @@ class CLITestV20NetworkJSON(test_cli20.CLITestV20Base):
                                    {'name': u'\u7f51\u7edc',
                                     'tags': ['a', 'b'], }
                                    )
+
+    def test_update_network_with_qos_policy(self):
+        """Update net: myid --qos-policy mypolicy."""
+        resource = 'network'
+        cmd = network.UpdateNetwork(test_cli20.MyApp(sys.stdout), None)
+        self._test_update_resource(resource, cmd, 'myid',
+                                   ['myid', '--qos-policy', 'mypolicy'],
+                                   {'qos_policy_id': 'mypolicy', })
+
+    def test_update_network_with_no_qos_policy(self):
+        """Update net: myid --no-qos-policy."""
+        resource = 'network'
+        cmd = network.UpdateNetwork(test_cli20.MyApp(sys.stdout), None)
+        self._test_update_resource(resource, cmd, 'myid',
+                                   ['myid', '--no-qos-policy'],
+                                   {'qos_policy_id': None, })
 
     def test_show_network(self):
         """Show net: --fields id --fields name myid."""
