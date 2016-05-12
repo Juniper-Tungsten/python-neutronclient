@@ -14,8 +14,8 @@
 #    under the License.
 #
 
+from neutronclient._i18n import _
 from neutronclient.common import utils
-from neutronclient.i18n import _
 from neutronclient.neutron import v2_0 as neutronv20
 from neutronclient.neutron.v2_0.vpn import utils as vpn_utils
 
@@ -35,6 +35,7 @@ class ShowIPsecPolicy(neutronv20.ShowCommand):
     """Show information of a given IPsec policy."""
 
     resource = 'ipsecpolicy'
+    help_resource = 'IPsec policy'
 
 
 class CreateIPsecPolicy(neutronv20.CreateCommand):
@@ -69,7 +70,7 @@ class CreateIPsecPolicy(neutronv20.CreateCommand):
         parser.add_argument(
             '--lifetime',
             metavar="units=UNITS,value=VALUE",
-            type=utils.str2dict,
+            type=utils.str2dict_type(optional_keys=['units', 'value']),
             help=vpn_utils.lifetime_help("IPsec"))
         parser.add_argument(
             'name', metavar='NAME',
@@ -92,12 +93,13 @@ class UpdateIPsecPolicy(neutronv20.UpdateCommand):
     """Update a given IPsec policy."""
 
     resource = 'ipsecpolicy'
+    help_resource = 'IPsec policy'
 
     def add_known_arguments(self, parser):
         parser.add_argument(
             '--lifetime',
             metavar="units=UNITS,value=VALUE",
-            type=utils.str2dict,
+            type=utils.str2dict_type(optional_keys=['units', 'value']),
             help=vpn_utils.lifetime_help("IPsec"))
 
     def args2body(self, parsed_args):
@@ -113,3 +115,4 @@ class DeleteIPsecPolicy(neutronv20.DeleteCommand):
     """Delete a given IPsec policy."""
 
     resource = 'ipsecpolicy'
+    help_resource = 'IPsec policy'

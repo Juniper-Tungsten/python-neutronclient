@@ -18,10 +18,11 @@ import argparse
 
 from oslo_serialization import jsonutils
 
+from neutronclient._i18n import _
 from neutronclient.common import exceptions
 from neutronclient.common import utils
-from neutronclient.i18n import _
 from neutronclient.neutron import v2_0 as neutronV20
+from neutronclient.neutron.v2_0 import dns
 from neutronclient.neutron.v2_0.qos import policy as qos_policy
 
 
@@ -46,6 +47,7 @@ def _add_updatable_args(parser):
     parser.add_argument(
         '--fixed-ip', metavar='subnet_id=SUBNET,ip_address=IP_ADDR',
         action='append',
+        type=utils.str2dict_type(optional_keys=['subnet_id', 'ip_address']),
         help=_('Desired IP and/or subnet for this port: '
                'subnet_id=<name_or_id>,ip_address=<ip>. '
                'You can repeat this option.'))
@@ -73,13 +75,12 @@ def _updatable_args2body(parsed_args, body, client):
     ips = []
     if parsed_args.fixed_ip:
         for ip_spec in parsed_args.fixed_ip:
-            ip_dict = utils.str2dict(ip_spec)
-            if 'subnet_id' in ip_dict:
-                subnet_name_id = ip_dict['subnet_id']
+            if 'subnet_id' in ip_spec:
+                subnet_name_id = ip_spec['subnet_id']
                 _subnet_id = neutronV20.find_resourceid_by_name_or_id(
                     client, 'subnet', subnet_name_id)
-                ip_dict['subnet_id'] = _subnet_id
-            ips.append(ip_dict)
+                ip_spec['subnet_id'] = _subnet_id
+            ips.append(ip_spec)
     if ips:
         body['fixed_ips'] = ips
 
@@ -107,17 +108,16 @@ class ListRouterPort(neutronV20.ListCommand):
     def get_parser(self, prog_name):
         parser = super(ListRouterPort, self).get_parser(prog_name)
         parser.add_argument(
-            'id', metavar='router',
+            'id', metavar='ROUTER',
             help=_('ID or name of router to look up.'))
         return parser
 
-    def get_data(self, parsed_args):
+    def take_action(self, parsed_args):
         neutron_client = self.get_client()
-        neutron_client.format = parsed_args.request_format
         _id = neutronV20.find_resourceid_by_name_or_id(
             neutron_client, 'router', parsed_args.id)
         self.values_specs.append('--device_id=%s' % _id)
-        return super(ListRouterPort, self).get_data(parsed_args)
+        return super(ListRouterPort, self).take_action(parsed_args)
 
 
 class ShowPort(neutronV20.ShowCommand):
@@ -159,6 +159,9 @@ class UpdateExtraDhcpOptMixin(object):
             default=[],
             action='append',
             dest='extra_dhcp_opts',
+            type=utils.str2dict_type(
+                required_keys=['opt_name'],
+                optional_keys=['opt_value', 'ip_version']),
             help=_('Extra dhcp options to be assigned to this port: '
                    'opt_name=<dhcp_option_name>,opt_value=<value>,'
                    'ip_version={4,6}. You can repeat this option.'))
@@ -175,7 +178,7 @@ class UpdateExtraDhcpOptMixin(object):
                             "ip_version={4,6}. "
                             "You can repeat this option.")
             for opt in parsed_args.extra_dhcp_opts:
-                opt_ele.update(utils.str2dict(opt))
+                opt_ele.update(opt)
                 if ('opt_name' in opt_ele and
                         ('opt_value' in opt_ele or 'ip_version' in opt_ele)):
                     if opt_ele.get('opt_value') == 'null':
@@ -200,7 +203,9 @@ class UpdatePortAllowedAddressPair(object):
             default=[],
             action='append',
             dest='allowed_address_pairs',
-            type=utils.str2dict,
+            type=utils.str2dict_type(
+                required_keys=['ip_address'],
+                optional_keys=['mac_address']),
             help=_('Allowed address pair associated with the port.'
                    'You can repeat this option.'))
         group_aap.add_argument(
@@ -239,12 +244,16 @@ class CreatePort(neutronV20.CreateCommand, UpdatePortSecGroupMixin,
             '--mac_address',
             help=argparse.SUPPRESS)
         parser.add_argument(
-            '--vnic-type', metavar='<direct | macvtap | normal>',
-            choices=['direct', 'macvtap', 'normal'],
+            '--vnic-type',
+            metavar='<direct | direct-physical | macvtap '
+                    '| normal | baremetal>',
+            choices=['direct', 'direct-physical', 'macvtap',
+                     'normal', 'baremetal'],
             help=_('VNIC type for this port.'))
         parser.add_argument(
             '--vnic_type',
-            choices=['direct', 'macvtap', 'normal'],
+            choices=['direct', 'direct-physical', 'macvtap',
+                     'normal', 'baremetal'],
             help=argparse.SUPPRESS)
         parser.add_argument(
             '--binding-profile',
@@ -260,6 +269,7 @@ class CreatePort(neutronV20.CreateCommand, UpdatePortSecGroupMixin,
         parser.add_argument(
             'network_id', metavar='NETWORK',
             help=_('Network ID or name this port belongs to.'))
+        dns.add_dns_argument_create(parser, self.resource, 'name')
 
     def args2body(self, parsed_args):
         client = self.get_client()
@@ -280,6 +290,7 @@ class CreatePort(neutronV20.CreateCommand, UpdatePortSecGroupMixin,
         self.args2body_extradhcpopt(parsed_args, body)
         self.args2body_qos_policy(parsed_args, body)
         self.args2body_allowedaddresspairs(parsed_args, body)
+        dns.args2body_dns_create(parsed_args, body, 'name')
 
         return {'port': body}
 
@@ -311,6 +322,7 @@ class UpdatePort(neutronV20.UpdateCommand, UpdatePortSecGroupMixin,
         self.add_arguments_extradhcpopt(parser)
         self.add_arguments_qos_policy(parser)
         self.add_arguments_allowedaddresspairs(parser)
+        dns.add_dns_argument_update(parser, self.resource, 'name')
 
     def args2body(self, parsed_args):
         body = {}
@@ -323,5 +335,6 @@ class UpdatePort(neutronV20.UpdateCommand, UpdatePortSecGroupMixin,
         self.args2body_extradhcpopt(parsed_args, body)
         self.args2body_qos_policy(parsed_args, body)
         self.args2body_allowedaddresspairs(parsed_args, body)
+        dns.args2body_dns_update(parsed_args, body, 'name')
 
         return {'port': body}

@@ -16,7 +16,7 @@
 
 from __future__ import print_function
 
-from neutronclient.i18n import _
+from neutronclient._i18n import _
 from neutronclient.neutron import v2_0 as neutronV20
 
 
@@ -124,9 +124,8 @@ class AssociateHealthMonitor(neutronV20.NeutronCommand):
             help=_('ID of the pool to be associated with the health monitor.'))
         return parser
 
-    def run(self, parsed_args):
+    def take_action(self, parsed_args):
         neutron_client = self.get_client()
-        neutron_client.format = parsed_args.request_format
         body = {'health_monitor': {'id': parsed_args.health_monitor_id}}
         pool_id = neutronV20.find_resourceid_by_name_or_id(
             neutron_client, 'pool', parsed_args.pool_id)
@@ -151,9 +150,8 @@ class DisassociateHealthMonitor(neutronV20.NeutronCommand):
             help=_('ID of the pool to be associated with the health monitor.'))
         return parser
 
-    def run(self, parsed_args):
+    def take_action(self, parsed_args):
         neutron_client = self.get_client()
-        neutron_client.format = parsed_args.request_format
         pool_id = neutronV20.find_resourceid_by_name_or_id(
             neutron_client, 'pool', parsed_args.pool_id)
         neutron_client.disassociate_health_monitor(pool_id,

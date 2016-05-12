@@ -16,14 +16,17 @@
 
 import sys
 
+from neutronclient.common import exceptions
 from neutronclient.neutron.v2_0.vpn import ipsecpolicy
 from neutronclient.tests.unit import test_cli20
 
 
 class CLITestV20VpnIpsecPolicyJSON(test_cli20.CLITestV20Base):
 
+    non_admin_status_resources = ['ipsecpolicy']
+
     def test_create_ipsecpolicy_all_params(self):
-        """vpn-ipsecpolicy-create all params with dashes."""
+        # vpn-ipsecpolicy-create all params with dashes.
         resource = 'ipsecpolicy'
         cmd = ipsecpolicy.CreateIPsecPolicy(test_cli20.MyApp(sys.stdout), None)
         name = 'ipsecpolicy1'
@@ -68,7 +71,7 @@ class CLITestV20VpnIpsecPolicyJSON(test_cli20.CLITestV20Base):
                                    extra_body=extra_body)
 
     def test_create_ipsecpolicy_with_limited_params(self):
-        """vpn-ipsecpolicy-create with limited params."""
+        # vpn-ipsecpolicy-create with limited params.
         resource = 'ipsecpolicy'
         cmd = ipsecpolicy.CreateIPsecPolicy(test_cli20.MyApp(sys.stdout), None)
         name = 'ipsecpolicy1'
@@ -96,7 +99,7 @@ class CLITestV20VpnIpsecPolicyJSON(test_cli20.CLITestV20Base):
         self._test_create_resource(resource, cmd, name, my_id, args,
                                    position_names, position_values)
 
-    def _test_lifetime_values(self, lifetime):
+    def _test_lifetime_values(self, lifetime, expected_exc=None):
         resource = 'ipsecpolicy'
         cmd = ipsecpolicy.CreateIPsecPolicy(test_cli20.MyApp(sys.stdout), None)
         name = 'ipsecpolicy1'
@@ -129,37 +132,41 @@ class CLITestV20VpnIpsecPolicyJSON(test_cli20.CLITestV20Base):
                            auth_algorithm, encryption_algorithm,
                            phase1_negotiation_mode, ike_version, pfs,
                            tenant_id]
-        try:
-            self._test_create_resource(resource, cmd, name, my_id, args,
-                                       position_names, position_values)
-        except Exception:
-            return
-        self.fail("IPsecPolicy Lifetime Error")
+        if not expected_exc:
+            expected_exc = exceptions.CommandError
+        self.assertRaises(
+            expected_exc,
+            self._test_create_resource,
+            resource, cmd, name, my_id, args,
+            position_names, position_values)
 
     def test_create_ipsecpolicy_with_invalid_lifetime_keys(self):
         lifetime = 'uts=seconds,val=20000'
+        self._test_lifetime_values(lifetime, SystemExit)
+
+    def test_create_ipsecpolicy_with_invalid_lifetime_units(self):
+        lifetime = 'units=minutes,value=600'
         self._test_lifetime_values(lifetime)
 
-    def test_create_ipsecpolicy_with_invalide_lifetime_values(self):
-        lifetime = 'units=minutes,value=0'
+    def test_create_ipsecpolicy_with_invalid_lifetime_value(self):
+        lifetime = 'units=seconds,value=0'
         self._test_lifetime_values(lifetime)
 
     def test_list_ipsecpolicy(self):
-        """vpn-ipsecpolicy-list."""
+        # vpn-ipsecpolicy-list.
         resources = "ipsecpolicies"
         cmd = ipsecpolicy.ListIPsecPolicy(test_cli20.MyApp(sys.stdout), None)
         self._test_list_resources(resources, cmd, True)
 
     def test_list_ipsecpolicy_pagination(self):
-        """vpn-ipsecpolicy-list."""
+        # vpn-ipsecpolicy-list.
         resources = "ipsecpolicies"
         cmd = ipsecpolicy.ListIPsecPolicy(test_cli20.MyApp(sys.stdout), None)
         self._test_list_resources_with_pagination(resources, cmd)
 
     def test_list_ipsecpolicy_sort(self):
-        """vpn-ipsecpolicy-list --sort-key name --sort-key id --sort-key asc
-        --sort-key desc
-        """
+        # vpn-ipsecpolicy-list --sort-key name --sort-key id --sort-key asc
+        # --sort-key desc
         resources = "ipsecpolicies"
         cmd = ipsecpolicy.ListIPsecPolicy(test_cli20.MyApp(sys.stdout), None)
         self._test_list_resources(resources, cmd,
@@ -167,20 +174,20 @@ class CLITestV20VpnIpsecPolicyJSON(test_cli20.CLITestV20Base):
                                   sort_dir=["asc", "desc"])
 
     def test_list_ipsecpolicy_limit(self):
-        """vpn-ipsecpolicy-list -P."""
+        # vpn-ipsecpolicy-list -P.
         resources = "ipsecpolicies"
         cmd = ipsecpolicy.ListIPsecPolicy(test_cli20.MyApp(sys.stdout), None)
         self._test_list_resources(resources, cmd, page_size=1000)
 
     def test_show_ipsecpolicy_id(self):
-        """vpn-ipsecpolicy-show ipsecpolicy_id."""
+        # vpn-ipsecpolicy-show ipsecpolicy_id.
         resource = 'ipsecpolicy'
         cmd = ipsecpolicy.ShowIPsecPolicy(test_cli20.MyApp(sys.stdout), None)
         args = ['--fields', 'id', self.test_id]
         self._test_show_resource(resource, cmd, self.test_id, args, ['id'])
 
     def test_show_ipsecpolicy_id_name(self):
-        """vpn-ipsecpolicy-show."""
+        # vpn-ipsecpolicy-show.
         resource = 'ipsecpolicy'
         cmd = ipsecpolicy.ShowIPsecPolicy(test_cli20.MyApp(sys.stdout), None)
         args = ['--fields', 'id', '--fields', 'name', self.test_id]
@@ -188,7 +195,7 @@ class CLITestV20VpnIpsecPolicyJSON(test_cli20.CLITestV20Base):
                                  args, ['id', 'name'])
 
     def test_update_ipsecpolicy(self):
-        """vpn-ipsecpolicy-update myid --name newname --tags a b."""
+        # vpn-ipsecpolicy-update myid --name newname --tags a b.
         resource = 'ipsecpolicy'
         cmd = ipsecpolicy.UpdateIPsecPolicy(test_cli20.MyApp(sys.stdout), None)
         self._test_update_resource(resource, cmd, 'myid',
@@ -196,13 +203,9 @@ class CLITestV20VpnIpsecPolicyJSON(test_cli20.CLITestV20Base):
                                    {'name': 'newname', })
 
     def test_delete_ipsecpolicy(self):
-        """vpn-ipsecpolicy-delete my-id."""
+        # vpn-ipsecpolicy-delete my-id.
         resource = 'ipsecpolicy'
         cmd = ipsecpolicy.DeleteIPsecPolicy(test_cli20.MyApp(sys.stdout), None)
         my_id = 'my-id'
         args = [my_id]
         self._test_delete_resource(resource, cmd, my_id, args)
-
-
-class CLITestV20VpnIpsecPolicyXML(CLITestV20VpnIpsecPolicyJSON):
-    format = 'xml'

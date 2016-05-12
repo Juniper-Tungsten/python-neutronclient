@@ -15,58 +15,75 @@
 
 import sys
 
+import testscenarios
+
 from neutronclient.neutron.v2_0 import rbac
 from neutronclient.tests.unit import test_cli20
 
+load_tests = testscenarios.load_tests_apply_scenarios
 
-class CLITestV20RBACJSON(test_cli20.CLITestV20Base):
+
+class CLITestV20RBACBaseJSON(test_cli20.CLITestV20Base):
+    non_admin_status_resources = ['rbac_policy']
+
+    scenarios = [
+        ('network rbac objects',
+         {'object_type_name': 'network', 'object_type_val': 'network'}),
+        ('qos policy rbac objects',
+         {'object_type_name': 'qos-policy', 'object_type_val': 'qos_policy'}),
+    ]
+
     def test_create_rbac_policy_with_mandatory_params(self):
-        """Create rbac: rbac_object --type network --action access_as_shared"""
+        # Create rbac: rbac_object --type <object_type_name> --action
+        # access_as_shared
         resource = 'rbac_policy'
         cmd = rbac.CreateRBACPolicy(test_cli20.MyApp(sys.stdout), None)
         name = 'rbac_object'
         myid = 'myid'
-        args = [name, '--type', 'network',
+        args = [name, '--type', self.object_type_name,
                 '--action', 'access_as_shared']
         position_names = ['object_id', 'object_type',
                           'target_tenant', 'action']
-        position_values = [name, 'network', None, 'access_as_shared']
+        position_values = [name, self.object_type_val, None,
+                           'access_as_shared']
         self._test_create_resource(resource, cmd, name, myid, args,
                                    position_names, position_values)
 
     def test_create_rbac_policy_with_all_params(self):
-        """Create rbac: rbac_object --type network """
-        """--target-tenant tenant_id --action access_as_external"""
+        # Create rbac: rbac_object --type <object_type_name>
+        # --target-tenant tenant_id --action access_as_external
         resource = 'rbac_policy'
         cmd = rbac.CreateRBACPolicy(test_cli20.MyApp(sys.stdout), None)
         name = 'rbac_object'
         myid = 'myid'
-        args = [name, '--type', 'network',
+        args = [name, '--type', self.object_type_name,
                 '--target-tenant', 'tenant_id',
                 '--action', 'access_as_external']
         position_names = ['object_id', 'object_type',
                           'target_tenant', 'action']
-        position_values = [name, 'network', 'tenant_id', 'access_as_external']
+        position_values = [name, self.object_type_val, 'tenant_id',
+                           'access_as_external']
         self._test_create_resource(resource, cmd, name, myid, args,
                                    position_names, position_values)
 
     def test_create_rbac_policy_with_unicode(self):
-        """Create rbac policy u'\u7f51\u7edc'."""
+        # Create rbac policy u'\u7f51\u7edc'.
         resource = 'rbac_policy'
         cmd = rbac.CreateRBACPolicy(test_cli20.MyApp(sys.stdout), None)
         name = u'\u7f51\u7edc'
         myid = 'myid'
-        args = [name, '--type', 'network',
+        args = [name, '--type', self.object_type_name,
                 '--target-tenant', 'tenant_id',
                 '--action', 'access_as_external']
         position_names = ['object_id', 'object_type',
                           'target_tenant', 'action']
-        position_values = [name, 'network', 'tenant_id', 'access_as_external']
+        position_values = [name, self.object_type_val, 'tenant_id',
+                           'access_as_external']
         self._test_create_resource(resource, cmd, name, myid, args,
                                    position_names, position_values)
 
     def test_update_rbac_policy(self):
-        """rbac-update <rbac-uuid> --target-tenant <other-tenant-uuid>."""
+        # rbac-update <rbac-uuid> --target-tenant <other-tenant-uuid>.
         resource = 'rbac_policy'
         cmd = rbac.UpdateRBACPolicy(test_cli20.MyApp(sys.stdout), None)
         self._test_update_resource(resource, cmd, 'myid',
@@ -74,7 +91,7 @@ class CLITestV20RBACJSON(test_cli20.CLITestV20Base):
                                    {'target_tenant': 'tenant_id', })
 
     def test_delete_rbac_policy(self):
-        """rbac-delete my-id."""
+        # rbac-delete my-id.
         resource = 'rbac_policy'
         cmd = rbac.DeleteRBACPolicy(test_cli20.MyApp(sys.stdout), None)
         my_id = 'myid1'
@@ -82,21 +99,21 @@ class CLITestV20RBACJSON(test_cli20.CLITestV20Base):
         self._test_delete_resource(resource, cmd, my_id, args)
 
     def test_list_rbac_policies(self):
-        """rbac-list."""
+        # rbac-list.
         resources = "rbac_policies"
         cmd = rbac.ListRBACPolicy(test_cli20.MyApp(sys.stdout), None)
         self._test_list_resources(resources, cmd, True)
 
     def test_list_rbac_policies_pagination(self):
-        """rbac-list with pagination."""
+        # rbac-list with pagination.
         resources = "rbac_policies"
         cmd = rbac.ListRBACPolicy(test_cli20.MyApp(sys.stdout), None)
         self._test_list_resources_with_pagination(resources, cmd)
 
     def test_list_rbac_policies_sort(self):
-        """sorted list: rbac-list --sort-key name --sort-key id
-        --sort-key asc --sort-key desc
-        """
+        # sorted list:
+        # rbac-list --sort-key name --sort-key id --sort-key asc
+        # --sort-key desc
         resources = "rbac_policies"
         cmd = rbac.ListRBACPolicy(test_cli20.MyApp(sys.stdout), None)
         self._test_list_resources(resources, cmd,
@@ -104,13 +121,13 @@ class CLITestV20RBACJSON(test_cli20.CLITestV20Base):
                                   sort_dir=["asc", "desc"])
 
     def test_list_rbac_policies_limit(self):
-        """size (1000) limited list: rbac-list -P."""
+        # size (1000) limited list: rbac-list -P.
         resources = "rbac_policies"
         cmd = rbac.ListRBACPolicy(test_cli20.MyApp(sys.stdout), None)
         self._test_list_resources(resources, cmd, page_size=1000)
 
     def test_show_rbac_policy(self):
-        """rbac-show test_id."""
+        # rbac-show test_id.
         resource = 'rbac_policy'
         cmd = rbac.ShowRBACPolicy(test_cli20.MyApp(sys.stdout), None)
         args = ['--fields', 'id', self.test_id]

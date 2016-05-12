@@ -14,8 +14,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
+from oslo_serialization import jsonutils
 
-from neutronclient.i18n import _
+from neutronclient._i18n import _
 from neutronclient.neutron import v2_0 as neutronV20
 
 
@@ -56,6 +57,9 @@ class CreateLoadBalancer(neutronV20.CreateCommand):
             '--provider',
             help=_('Provider name of load balancer service.'))
         parser.add_argument(
+            '--flavor',
+            help=_('ID or name of flavor.'))
+        parser.add_argument(
             '--vip-address',
             help=_('VIP address for the load balancer.'))
         parser.add_argument(
@@ -67,6 +71,11 @@ class CreateLoadBalancer(neutronV20.CreateCommand):
             self.get_client(), 'subnet', parsed_args.vip_subnet)
         body = {'vip_subnet_id': _subnet_id,
                 'admin_state_up': parsed_args.admin_state}
+        if parsed_args.flavor:
+            _flavor_id = neutronV20.find_resourceid_by_name_or_id(
+                self.get_client(), 'flavor', parsed_args.flavor)
+            body['flavor_id'] = _flavor_id
+
         neutronV20.update_dict(parsed_args, body,
                                ['description', 'provider', 'vip_address',
                                 'tenant_id', 'name'])
@@ -85,3 +94,65 @@ class DeleteLoadBalancer(neutronV20.DeleteCommand):
 
     resource = 'loadbalancer'
     allow_names = True
+
+
+class RetrieveLoadBalancerStats(neutronV20.ShowCommand):
+    """Retrieve stats for a given loadbalancer."""
+
+    resource = 'loadbalancer'
+
+    def take_action(self, parsed_args):
+        neutron_client = self.get_client()
+        neutron_client.format = parsed_args.request_format
+        loadbalancer_id = neutronV20.find_resourceid_by_name_or_id(
+            self.get_client(), 'loadbalancer', parsed_args.id)
+        params = {}
+        if parsed_args.fields:
+            params = {'fields': parsed_args.fields}
+
+        data = neutron_client.retrieve_loadbalancer_stats(loadbalancer_id,
+                                                          **params)
+        self.format_output_data(data)
+        stats = data['stats']
+        if 'stats' in data:
+            # To render the output table like:
+            # +--------------------+-------+
+            # | Field              | Value |
+            # +--------------------+-------+
+            # | field1             | value1|
+            # | field2             | value2|
+            # | field3             | value3|
+            # | ...                | ...   |
+            # +--------------------+-------+
+            # it has two columns and the Filed column is alphabetical,
+            # here covert the data dict to the 1-1 vector format below:
+            # [(field1, field2, field3, ...), (value1, value2, value3, ...)]
+            return list(zip(*sorted(stats.items())))
+
+
+class RetrieveLoadBalancerStatus(neutronV20.NeutronCommand):
+    """Retrieve status for a given loadbalancer.
+
+    The only output is a formatted JSON tree, and the table format
+    does not support this type of data.
+    """
+    resource = 'loadbalancer'
+
+    def get_parser(self, prog_name):
+        parser = super(RetrieveLoadBalancerStatus, self).get_parser(prog_name)
+        parser.add_argument(
+            self.resource, metavar=self.resource.upper(),
+            help=_('ID or name of %s to show.') % self.resource)
+
+        return parser
+
+    def take_action(self, parsed_args):
+        self.log.debug('run(%s)' % parsed_args)
+        neutron_client = self.get_client()
+        lb_id = neutronV20.find_resourceid_by_name_or_id(
+            neutron_client, self.resource, parsed_args.loadbalancer)
+        params = {}
+        data = neutron_client.retrieve_loadbalancer_status(lb_id, **params)
+        res = data['statuses']
+        if 'statuses' in data:
+            print(jsonutils.dumps(res, indent=4))

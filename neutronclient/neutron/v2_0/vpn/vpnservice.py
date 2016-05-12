@@ -14,7 +14,7 @@
 #    under the License.
 #
 
-from neutronclient.i18n import _
+from neutronclient._i18n import _
 from neutronclient.neutron import v2_0 as neutronv20
 
 
@@ -34,6 +34,7 @@ class ShowVPNService(neutronv20.ShowCommand):
     """Show information of a given VPN service."""
 
     resource = 'vpnservice'
+    help_resource = 'VPN service'
 
 
 class CreateVPNService(neutronv20.CreateCommand):
@@ -55,13 +56,16 @@ class CreateVPNService(neutronv20.CreateCommand):
             'router', metavar='ROUTER',
             help=_('Router unique identifier for the VPN service.'))
         parser.add_argument(
-            'subnet', metavar='SUBNET',
-            help=_('Subnet unique identifier for the VPN service deployment.'))
+            'subnet', nargs='?', metavar='SUBNET',
+            help=_('[DEPRECATED in Mitaka] Unique identifier for the local '
+                   'private subnet.'))
 
     def args2body(self, parsed_args):
-        _subnet_id = neutronv20.find_resourceid_by_name_or_id(
-            self.get_client(), 'subnet',
-            parsed_args.subnet)
+        if parsed_args.subnet:
+            _subnet_id = neutronv20.find_resourceid_by_name_or_id(
+                self.get_client(), 'subnet', parsed_args.subnet)
+        else:
+            _subnet_id = None
         _router_id = neutronv20.find_resourceid_by_name_or_id(
             self.get_client(), 'router',
             parsed_args.router)
@@ -80,9 +84,11 @@ class UpdateVPNService(neutronv20.UpdateCommand):
     """Update a given VPN service."""
 
     resource = 'vpnservice'
+    help_resource = 'VPN service'
 
 
 class DeleteVPNService(neutronv20.DeleteCommand):
     """Delete a given VPN service."""
 
     resource = 'vpnservice'
+    help_resource = 'VPN service'

@@ -16,8 +16,8 @@
 
 from __future__ import print_function
 
+from neutronclient._i18n import _
 from neutronclient.common import utils
-from neutronclient.i18n import _
 from neutronclient.neutron import v2_0 as neutronV20
 
 GW_RESOURCE = 'network_gateway'
@@ -234,10 +234,8 @@ class NetworkGatewayInterfaceCommand(neutronV20.NeutronCommand):
 class ConnectNetworkGateway(NetworkGatewayInterfaceCommand):
     """Add an internal network interface to a router."""
 
-    def run(self, parsed_args):
-        self.log.debug('run(%s)' % parsed_args)
+    def take_action(self, parsed_args):
         neutron_client = self.get_client()
-        neutron_client.format = parsed_args.request_format
         (gateway_id, network_id) = self.retrieve_ids(neutron_client,
                                                      parsed_args)
         neutron_client.connect_network_gateway(
@@ -253,10 +251,8 @@ class ConnectNetworkGateway(NetworkGatewayInterfaceCommand):
 class DisconnectNetworkGateway(NetworkGatewayInterfaceCommand):
     """Remove a network from a network gateway."""
 
-    def run(self, parsed_args):
-        self.log.debug('run(%s)' % parsed_args)
+    def take_action(self, parsed_args):
         neutron_client = self.get_client()
-        neutron_client.format = parsed_args.request_format
         (gateway_id, network_id) = self.retrieve_ids(neutron_client,
                                                      parsed_args)
         neutron_client.disconnect_network_gateway(

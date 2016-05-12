@@ -12,7 +12,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from neutronclient.i18n import _
+from neutronclient._i18n import _
 from neutronclient.neutron import v2_0 as neutronv20
 
 
@@ -101,7 +101,6 @@ class CreateMeteringLabelRule(neutronv20.CreateCommand):
 
     def args2body(self, parsed_args):
         neutron_client = self.get_client()
-        neutron_client.format = parsed_args.request_format
         label_id = neutronv20.find_resourceid_by_name_or_id(
             neutron_client, 'metering_label', parsed_args.label_id)
 

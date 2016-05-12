@@ -16,7 +16,7 @@
 #    under the License.
 #
 
-from neutronclient.i18n import _
+from neutronclient._i18n import _
 from neutronclient.neutron import v2_0 as neutronV20
 
 
@@ -43,16 +43,16 @@ class ListMember(LbaasMemberMixin, neutronV20.ListCommand):
     resource = 'member'
     shadow_resource = 'lbaas_member'
     list_columns = [
-        'id', 'address', 'protocol_port', 'weight',
+        'id', 'name', 'address', 'protocol_port', 'weight',
         'subnet_id', 'admin_state_up', 'status'
     ]
     pagination_support = True
     sorting_support = True
 
-    def get_data(self, parsed_args):
+    def take_action(self, parsed_args):
         self.parent_id = _get_pool_id(self.get_client(), parsed_args.pool)
         self.values_specs.append('--pool_id=%s' % self.parent_id)
-        return super(ListMember, self).get_data(parsed_args)
+        return super(ListMember, self).take_action(parsed_args)
 
 
 class ShowMember(LbaasMemberMixin, neutronV20.ShowCommand):
@@ -76,6 +76,9 @@ class CreateMember(neutronV20.CreateCommand):
         parser.add_argument(
             '--weight',
             help=_('Weight of member in the pool (default:1, [0..256]).'))
+        parser.add_argument(
+            '--name',
+            help=_('Name of the member to be created.'))
         parser.add_argument(
             '--subnet',
             required=True,
@@ -102,7 +105,7 @@ class CreateMember(neutronV20.CreateCommand):
                 'protocol_port': parsed_args.protocol_port,
                 'address': parsed_args.address}
         neutronV20.update_dict(parsed_args, body,
-                               ['weight', 'subnet_id', 'tenant_id'])
+                               ['weight', 'subnet_id', 'tenant_id', 'name'])
         return {self.resource: body}
 
 
@@ -123,12 +126,15 @@ class UpdateMember(neutronV20.UpdateCommand):
         parser.add_argument(
             'pool', metavar='POOL',
             help=_('ID or name of the pool that this member belongs to'))
+        parser.add_argument(
+            '--name',
+            help=_('Updated name of the member.'))
 
     def args2body(self, parsed_args):
         self.parent_id = _get_pool_id(self.get_client(), parsed_args.pool)
         body = {}
         neutronV20.update_dict(parsed_args, body,
-                               ['admin_state_up', 'weight'])
+                               ['admin_state_up', 'weight', 'name'])
         return {self.resource: body}
 
 

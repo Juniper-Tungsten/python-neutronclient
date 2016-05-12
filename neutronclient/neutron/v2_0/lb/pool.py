@@ -17,7 +17,7 @@
 
 import six
 
-from neutronclient.i18n import _
+from neutronclient._i18n import _
 from neutronclient.neutron import v2_0 as neutronV20
 
 
@@ -107,10 +107,8 @@ class RetrievePoolStats(neutronV20.ShowCommand):
 
     resource = 'pool'
 
-    def get_data(self, parsed_args):
-        self.log.debug('run(%s)' % parsed_args)
+    def take_action(self, parsed_args):
         neutron_client = self.get_client()
-        neutron_client.format = parsed_args.request_format
         pool_id = neutronV20.find_resourceid_by_name_or_id(
             self.get_client(), 'pool', parsed_args.id)
         params = {}

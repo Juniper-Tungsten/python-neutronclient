@@ -22,14 +22,14 @@ import time
 
 import requests
 import six.moves.urllib.parse as urlparse
+from six import string_types
 
+from neutronclient._i18n import _
 from neutronclient import client
-from neutronclient.common import constants
 from neutronclient.common import exceptions
 from neutronclient.common import extension as client_extension
 from neutronclient.common import serializer
 from neutronclient.common import utils
-from neutronclient.i18n import _
 
 
 _logger = logging.getLogger(__name__)
@@ -45,10 +45,11 @@ def exception_handler_v20(status_code, error_content):
     :param error_content: deserialized body of error response
     """
     error_dict = None
+    request_ids = error_content.request_ids
     if isinstance(error_content, dict):
         error_dict = error_content.get('NeutronError')
     # Find real error type
-    bad_neutron_error_flag = False
+    client_exc = None
     if error_dict:
         # If Neutron key is found, it will definitely contain
         # a 'message' and 'type' keys?
@@ -57,40 +58,34 @@ def exception_handler_v20(status_code, error_content):
             error_message = error_dict['message']
             if error_dict['detail']:
                 error_message += "\n" + error_dict['detail']
-        except Exception:
-            bad_neutron_error_flag = True
-        if not bad_neutron_error_flag:
             # If corresponding exception is defined, use it.
             client_exc = getattr(exceptions, '%sClient' % error_type, None)
-            # Otherwise look up per status-code client exception
-            if not client_exc:
-                client_exc = exceptions.HTTP_EXCEPTION_MAP.get(status_code)
-            if client_exc:
-                raise client_exc(message=error_message,
-                                 status_code=status_code)
-            else:
-                raise exceptions.NeutronClientException(
-                    status_code=status_code, message=error_message)
-        else:
-            raise exceptions.NeutronClientException(status_code=status_code,
-                                                    message=error_dict)
+        except Exception:
+            error_message = "%s" % error_dict
     else:
-        message = None
+        error_message = None
         if isinstance(error_content, dict):
-            message = error_content.get('message')
-        if message:
-            raise exceptions.NeutronClientException(status_code=status_code,
-                                                    message=message)
+            error_message = error_content.get('message')
+        if not error_message:
+            # If we end up here the exception was not a neutron error
+            error_message = "%s-%s" % (status_code, error_content)
 
-    # If we end up here the exception was not a neutron error
-    msg = "%s-%s" % (status_code, error_content)
-    raise exceptions.NeutronClientException(status_code=status_code,
-                                            message=msg)
+    # If an exception corresponding to the error type is not found,
+    # look up per status-code client exception.
+    if not client_exc:
+        client_exc = exceptions.HTTP_EXCEPTION_MAP.get(status_code)
+    # If there is no exception per status-code,
+    # Use NeutronClientException as fallback.
+    if not client_exc:
+        client_exc = exceptions.NeutronClientException
+
+    raise client_exc(message=error_message,
+                     status_code=status_code,
+                     request_ids=request_ids)
 
 
 class APIParamsCall(object):
-    """A Decorator to add support for format and tenant overriding and filters.
-    """
+    """A Decorator to support formatting and tenant overriding and filters."""
     def __init__(self, function):
         self.function = function
 
@@ -103,6 +98,99 @@ class APIParamsCall(object):
             instance.format = _format
             return ret
         return with_params
+
+
+class _RequestIdMixin(object):
+    """Wrapper class to expose x-openstack-request-id to the caller."""
+    def _request_ids_setup(self):
+        self._request_ids = []
+
+    @property
+    def request_ids(self):
+        return self._request_ids
+
+    def _append_request_ids(self, resp):
+        """Add request_ids as an attribute to the object
+
+        :param resp: Response object or list of Response objects
+        """
+        if isinstance(resp, list):
+            # Add list of request_ids if response is of type list.
+            for resp_obj in resp:
+                self._append_request_id(resp_obj)
+        elif resp is not None:
+            # Add request_ids if response contains single object.
+            self._append_request_id(resp)
+
+    def _append_request_id(self, resp):
+        if isinstance(resp, requests.Response):
+            # Extract 'x-openstack-request-id' from headers if
+            # response is a Response object.
+            request_id = resp.headers.get('x-openstack-request-id')
+        else:
+            # If resp is of type string.
+            request_id = resp
+        if request_id:
+            self._request_ids.append(request_id)
+
+
+class _DictWithMeta(dict, _RequestIdMixin):
+    def __init__(self, values, resp):
+        super(_DictWithMeta, self).__init__(values)
+        self._request_ids_setup()
+        self._append_request_ids(resp)
+
+
+class _TupleWithMeta(tuple, _RequestIdMixin):
+    def __new__(cls, values, resp):
+        return super(_TupleWithMeta, cls).__new__(cls, values)
+
+    def __init__(self, values, resp):
+        self._request_ids_setup()
+        self._append_request_ids(resp)
+
+
+class _StrWithMeta(str, _RequestIdMixin):
+    def __new__(cls, value, resp):
+        return super(_StrWithMeta, cls).__new__(cls, value)
+
+    def __init__(self, values, resp):
+        self._request_ids_setup()
+        self._append_request_ids(resp)
+
+
+class _GeneratorWithMeta(_RequestIdMixin):
+    def __init__(self, paginate_func, collection, path, **params):
+        self.paginate_func = paginate_func
+        self.collection = collection
+        self.path = path
+        self.params = params
+        self.generator = None
+        self._request_ids_setup()
+
+    def _paginate(self):
+        for r in self.paginate_func(
+                self.collection, self.path, **self.params):
+            yield r, r.request_ids
+
+    def __iter__(self):
+        return self
+
+    # Python 3 compatibility
+    def __next__(self):
+        return self.next()
+
+    def next(self):
+        if not self.generator:
+            self.generator = self._paginate()
+
+        try:
+            obj, req_id = next(self.generator)
+            self._append_request_ids(req_id)
+        except StopIteration:
+            raise StopIteration()
+
+        return obj
 
 
 class ClientBase(object):
@@ -153,7 +241,6 @@ class ClientBase(object):
 
         nets = neutron.list_networks()
         ...
-
     """
 
     # API has no way to report plurals, so we have to hard code them
@@ -171,7 +258,7 @@ class ClientBase(object):
         self.action_prefix = "/v%s" % (self.version)
         self.retry_interval = 1
 
-    def _handle_fault_response(self, status_code, response_body):
+    def _handle_fault_response(self, status_code, response_body, resp):
         # Create exception with HTTP status code and message
         _logger.debug("Error message: %s", response_body)
         # Add deserialized error message to exception arguments
@@ -181,80 +268,58 @@ class ClientBase(object):
             # If unable to deserialized body it is probably not a
             # Neutron error
             des_error_body = {'message': response_body}
+        error_body = self._convert_into_with_meta(des_error_body, resp)
         # Raise the appropriate exception
-        exception_handler_v20(status_code, des_error_body)
+        exception_handler_v20(status_code, error_body)
 
     def do_request(self, method, action, body=None, headers=None, params=None):
         # Add format and tenant_id
         action += ".%s" % self.format
         action = self.action_prefix + action
-        if type(params) is dict and params:
+        if isinstance(params, dict) and params:
             params = utils.safe_encode_dict(params)
             action += '?' + urlparse.urlencode(params, doseq=1)
 
         if body:
             body = self.serialize(body)
 
-        resp, replybody = self.httpclient.do_request(
-            action, method, body=body,
-            content_type=self.content_type())
+        resp, replybody = self.httpclient.do_request(action, method, body=body)
 
         status_code = resp.status_code
         if status_code in (requests.codes.ok,
                            requests.codes.created,
                            requests.codes.accepted,
                            requests.codes.no_content):
-            return self.deserialize(replybody, status_code)
+            data = self.deserialize(replybody, status_code)
+            return self._convert_into_with_meta(data, resp)
         else:
             if not replybody:
                 replybody = resp.reason
-            self._handle_fault_response(status_code, replybody)
+            self._handle_fault_response(status_code, replybody, resp)
 
     def get_auth_info(self):
         return self.httpclient.get_auth_info()
 
     def serialize(self, data):
-        """Serializes a dictionary into either XML or JSON.
+        """Serializes a dictionary into JSON.
 
         A dictionary with a single key can be passed and it can contain any
         structure.
         """
         if data is None:
             return None
-        elif type(data) is dict:
-            return serializer.Serializer(
-                self.get_attr_metadata()).serialize(data, self.content_type())
+        elif isinstance(data, dict):
+            return serializer.Serializer().serialize(data)
         else:
             raise Exception(_("Unable to serialize object of type = '%s'") %
                             type(data))
 
     def deserialize(self, data, status_code):
-        """Deserializes an XML or JSON string into a dictionary."""
+        """Deserializes a JSON string into a dictionary."""
         if status_code == 204:
             return data
-        return serializer.Serializer(self.get_attr_metadata()).deserialize(
-            data, self.content_type())['body']
-
-    def get_attr_metadata(self):
-        if self.format == 'json':
-            return {}
-        old_request_format = self.format
-        self.format = 'json'
-        exts = self.list_extensions()['extensions']
-        self.format = old_request_format
-        ns = dict([(ext['alias'], ext['namespace']) for ext in exts])
-        self.EXTED_PLURALS.update(constants.PLURALS)
-        return {'plurals': self.EXTED_PLURALS,
-                'xmlns': constants.XML_NS_V20,
-                constants.EXT_NS: ns}
-
-    def content_type(self, _format=None):
-        """Returns the mime-type for either 'xml' or 'json'.
-
-        Defaults to the currently set format.
-        """
-        _format = _format or self.format
-        return "application/%s" % (_format)
+        return serializer.Serializer().deserialize(
+            data)['body']
 
     def retry_request(self, method, action, body=None,
                       headers=None, params=None):
@@ -304,11 +369,14 @@ class ClientBase(object):
     def list(self, collection, path, retrieve_all=True, **params):
         if retrieve_all:
             res = []
+            request_ids = []
             for r in self._pagination(collection, path, **params):
                 res.extend(r[collection])
-            return {collection: res}
+                request_ids.extend(r.request_ids)
+            return _DictWithMeta({collection: res}, request_ids)
         else:
-            return self._pagination(collection, path, **params)
+            return _GeneratorWithMeta(self._pagination, collection,
+                                      path, **params)
 
     def _pagination(self, collection, path, **params):
         if params.get('page_reverse', False):
@@ -329,6 +397,15 @@ class ClientBase(object):
                         break
             except KeyError:
                 break
+
+    def _convert_into_with_meta(self, item, resp):
+        if item:
+            if isinstance(item, dict):
+                return _DictWithMeta(item, resp)
+            elif isinstance(item, string_types):
+                return _StrWithMeta(item, resp)
+        else:
+            return _TupleWithMeta((), resp)
 
 
 class Client(ClientBase):
@@ -368,8 +445,14 @@ class Client(ClientBase):
 
     lbaas_loadbalancers_path = "/lbaas/loadbalancers"
     lbaas_loadbalancer_path = "/lbaas/loadbalancers/%s"
+    lbaas_loadbalancer_path_stats = "/lbaas/loadbalancers/%s/stats"
+    lbaas_loadbalancer_path_status = "/lbaas/loadbalancers/%s/statuses"
     lbaas_listeners_path = "/lbaas/listeners"
     lbaas_listener_path = "/lbaas/listeners/%s"
+    lbaas_l7policies_path = "/lbaas/l7policies"
+    lbaas_l7policy_path = lbaas_l7policies_path + "/%s"
+    lbaas_l7rules_path = lbaas_l7policy_path + "/rules"
+    lbaas_l7rule_path = lbaas_l7rules_path + "/%s"
     lbaas_pools_path = "/lbaas/pools"
     lbaas_pool_path = "/lbaas/pools/%s"
     lbaas_healthmonitors_path = "/lbaas/healthmonitors"
@@ -398,14 +481,6 @@ class Client(ClientBase):
     gateway_devices_path = "/gateway-devices"
     gateway_device_path = "/gateway-devices/%s"
     service_providers_path = "/service-providers"
-    credentials_path = "/credentials"
-    credential_path = "/credentials/%s"
-    network_profiles_path = "/network_profiles"
-    network_profile_path = "/network_profiles/%s"
-    network_profile_bindings_path = "/network_profile_bindings"
-    policy_profiles_path = "/policy_profiles"
-    policy_profile_path = "/policy_profiles/%s"
-    policy_profile_bindings_path = "/policy_profile_bindings"
     metering_labels_path = "/metering/metering-labels"
     metering_label_path = "/metering/metering-labels/%s"
     metering_label_rules_path = "/metering/metering-label-rules"
@@ -427,8 +502,6 @@ class Client(ClientBase):
     firewall_policy_remove_path = "/fw/firewall_policies/%s/remove_rule"
     firewalls_path = "/fw/firewalls"
     firewall_path = "/fw/firewalls/%s"
-    net_partitions_path = "/net-partitions"
-    net_partition_path = "/net-partitions/%s"
     rbac_policies_path = "/rbac-policies"
     rbac_policy_path = "/rbac-policies/%s"
     qos_policies_path = "/qos/policies"
@@ -437,6 +510,26 @@ class Client(ClientBase):
     qos_bandwidth_limit_rule_path = "/qos/policies/%s/bandwidth_limit_rules/%s"
     qos_rule_types_path = "/qos/rule-types"
     qos_rule_type_path = "/qos/rule-types/%s"
+    flavors_path = "/flavors"
+    flavor_path = "/flavors/%s"
+    service_profiles_path = "/service_profiles"
+    service_profile_path = "/service_profiles/%s"
+    flavor_profile_bindings_path = flavor_path + service_profiles_path
+    flavor_profile_binding_path = flavor_path + service_profile_path
+    availability_zones_path = "/availability_zones"
+    auto_allocated_topology_path = "/auto-allocated-topology/%s"
+    BGP_DRINSTANCES = "/bgp-drinstances"
+    BGP_DRINSTANCE = "/bgp-drinstance/%s"
+    BGP_DRAGENTS = "/bgp-dragents"
+    BGP_DRAGENT = "/bgp-dragents/%s"
+    bgp_speakers_path = "/bgp-speakers"
+    bgp_speaker_path = "/bgp-speakers/%s"
+    bgp_peers_path = "/bgp-peers"
+    bgp_peer_path = "/bgp-peers/%s"
+    network_ip_availabilities_path = '/network-ip-availabilities'
+    network_ip_availability_path = '/network-ip-availabilities/%s'
+    tags_path = "/%s/%s/tags"
+    tag_path = "/%s/%s/tags/%s"
 
     # API has no way to report plurals, so we have to hard code them
     EXTED_PLURALS = {'routers': 'router',
@@ -461,9 +554,11 @@ class Client(ClientBase):
                      'firewalls': 'firewall',
                      'metering_labels': 'metering_label',
                      'metering_label_rules': 'metering_label_rule',
-                     'net_partitions': 'net_partition',
                      'loadbalancers': 'loadbalancer',
                      'listeners': 'listener',
+                     'l7rules': 'l7rule',
+                     'l7policies': 'l7policy',
+                     'lbaas_l7policies': 'lbaas_l7policy',
                      'lbaas_pools': 'lbaas_pool',
                      'lbaas_healthmonitors': 'lbaas_healthmonitor',
                      'lbaas_members': 'lbaas_member',
@@ -473,43 +568,42 @@ class Client(ClientBase):
                      'qos_policies': 'qos_policy',
                      'policies': 'policy',
                      'bandwidth_limit_rules': 'bandwidth_limit_rule',
+                     'rules': 'rule',
                      'rule_types': 'rule_type',
+                     'flavors': 'flavor',
+                     'bgp_speakers': 'bgp_speaker',
+                     'bgp_peers': 'bgp_peer',
+                     'network_ip_availabilities': 'network_ip_availability',
                      }
 
     @APIParamsCall
-    def list_ext(self, path, **_params):
-        """Client extension hook for lists.
-        """
-        return self.get(path, params=_params)
+    def list_ext(self, collection, path, retrieve_all, **_params):
+        """Client extension hook for list."""
+        return self.list(collection, path, retrieve_all, **_params)
 
     @APIParamsCall
     def show_ext(self, path, id, **_params):
-        """Client extension hook for shows.
-        """
+        """Client extension hook for show."""
         return self.get(path % id, params=_params)
 
     @APIParamsCall
     def create_ext(self, path, body=None):
-        """Client extension hook for creates.
-        """
+        """Client extension hook for create."""
         return self.post(path, body=body)
 
     @APIParamsCall
     def update_ext(self, path, id, body=None):
-        """Client extension hook for updates.
-        """
+        """Client extension hook for update."""
         return self.put(path % id, body=body)
 
     @APIParamsCall
     def delete_ext(self, path, id):
-        """Client extension hook for deletes.
-        """
+        """Client extension hook for delete."""
         return self.delete(path % id)
 
     @APIParamsCall
     def get_quotas_tenant(self, **_params):
-        """Fetch tenant info in server's context for following quota operation.
-        """
+        """Fetch tenant info for following quota operation."""
         return self.get(self.quota_path % 'tenant', params=_params)
 
     @APIParamsCall
@@ -534,24 +628,24 @@ class Client(ClientBase):
 
     @APIParamsCall
     def list_extensions(self, **_params):
-        """Fetch a list of all exts on server side."""
+        """Fetch a list of all extensions on server side."""
         return self.get(self.extensions_path, params=_params)
 
     @APIParamsCall
     def show_extension(self, ext_alias, **_params):
-        """Fetch a list of all exts on server side."""
+        """Fetches information of a certain extension."""
         return self.get(self.extension_path % ext_alias, params=_params)
 
     @APIParamsCall
     def list_ports(self, retrieve_all=True, **_params):
-        """Fetches a list of all networks for a tenant."""
+        """Fetches a list of all ports for a tenant."""
         # Pass filters in "params" argument to do_request
         return self.list('ports', self.ports_path, retrieve_all,
                          **_params)
 
     @APIParamsCall
     def show_port(self, port, **_params):
-        """Fetches information of a certain network."""
+        """Fetches information of a certain port."""
         return self.get(self.port_path % (port), params=_params)
 
     @APIParamsCall
@@ -598,7 +692,7 @@ class Client(ClientBase):
 
     @APIParamsCall
     def list_subnets(self, retrieve_all=True, **_params):
-        """Fetches a list of all networks for a tenant."""
+        """Fetches a list of all subnets for a tenant."""
         return self.list('subnets', self.subnets_path, retrieve_all,
                          **_params)
 
@@ -974,6 +1068,18 @@ class Client(ClientBase):
                            (lbaas_loadbalancer))
 
     @APIParamsCall
+    def retrieve_loadbalancer_stats(self, loadbalancer, **_params):
+        """Retrieves stats for a certain load balancer."""
+        return self.get(self.lbaas_loadbalancer_path_stats % (loadbalancer),
+                        params=_params)
+
+    @APIParamsCall
+    def retrieve_loadbalancer_status(self, loadbalancer, **_params):
+        """Retrieves status for a certain load balancer."""
+        return self.get(self.lbaas_loadbalancer_path_status % (loadbalancer),
+                        params=_params)
+
+    @APIParamsCall
     def list_listeners(self, retrieve_all=True, **_params):
         """Fetches a list of all lbaas_listeners for a tenant."""
         return self.list('listeners', self.lbaas_listeners_path,
@@ -1000,6 +1106,62 @@ class Client(ClientBase):
     def delete_listener(self, lbaas_listener):
         """Deletes the specified lbaas_listener."""
         return self.delete(self.lbaas_listener_path % (lbaas_listener))
+
+    @APIParamsCall
+    def list_lbaas_l7policies(self, retrieve_all=True, **_params):
+        """Fetches a list of all L7 policies for a listener."""
+        return self.list('l7policies', self.lbaas_l7policies_path,
+                         retrieve_all, **_params)
+
+    @APIParamsCall
+    def show_lbaas_l7policy(self, l7policy, **_params):
+        """Fetches information of a certain listener's L7 policy."""
+        return self.get(self.lbaas_l7policy_path % l7policy,
+                        params=_params)
+
+    @APIParamsCall
+    def create_lbaas_l7policy(self, body=None):
+        """Creates L7 policy for a certain listener."""
+        return self.post(self.lbaas_l7policies_path, body=body)
+
+    @APIParamsCall
+    def update_lbaas_l7policy(self, l7policy, body=None):
+        """Updates L7 policy."""
+        return self.put(self.lbaas_l7policy_path % l7policy,
+                        body=body)
+
+    @APIParamsCall
+    def delete_lbaas_l7policy(self, l7policy):
+        """Deletes the specified L7 policy."""
+        return self.delete(self.lbaas_l7policy_path % l7policy)
+
+    @APIParamsCall
+    def list_lbaas_l7rules(self, l7policy, retrieve_all=True, **_params):
+        """Fetches a list of all rules for L7 policy."""
+        return self.list('rules', self.lbaas_l7rules_path % l7policy,
+                         retrieve_all, **_params)
+
+    @APIParamsCall
+    def show_lbaas_l7rule(self, l7rule, l7policy, **_params):
+        """Fetches information of a certain L7 policy's rule."""
+        return self.get(self.lbaas_l7rule_path % (l7policy, l7rule),
+                        params=_params)
+
+    @APIParamsCall
+    def create_lbaas_l7rule(self, l7policy, body=None):
+        """Creates rule for a certain L7 policy."""
+        return self.post(self.lbaas_l7rules_path % l7policy, body=body)
+
+    @APIParamsCall
+    def update_lbaas_l7rule(self, l7rule, l7policy, body=None):
+        """Updates L7 rule."""
+        return self.put(self.lbaas_l7rule_path % (l7policy, l7rule),
+                        body=body)
+
+    @APIParamsCall
+    def delete_lbaas_l7rule(self, l7rule, l7policy):
+        """Deletes the specified L7 rule."""
+        return self.delete(self.lbaas_l7rule_path % (l7policy, l7rule))
 
     @APIParamsCall
     def list_lbaas_pools(self, retrieve_all=True, **_params):
@@ -1368,6 +1530,30 @@ class Client(ClientBase):
                          body=body)
 
     @APIParamsCall
+    def list_dragents_hosting_bgp_speaker(self, bgp_speaker, **_params):
+        """Fetches a list of Dynamic Routing agents hosting a BGP speaker."""
+        return self.get((self.bgp_speaker_path + self.BGP_DRAGENTS)
+                        % bgp_speaker, params=_params)
+
+    @APIParamsCall
+    def add_bgp_speaker_to_dragent(self, bgp_dragent, body):
+        """Adds a BGP speaker to Dynamic Routing agent."""
+        return self.post((self.agent_path + self.BGP_DRINSTANCES)
+                         % bgp_dragent, body=body)
+
+    @APIParamsCall
+    def remove_bgp_speaker_from_dragent(self, bgp_dragent, bgpspeaker_id):
+        """Removes a BGP speaker from Dynamic Routing agent."""
+        return self.delete((self.agent_path + self.BGP_DRINSTANCES + "/%s")
+                           % (bgp_dragent, bgpspeaker_id))
+
+    @APIParamsCall
+    def list_bgp_speaker_on_dragent(self, bgp_dragent, **_params):
+        """Fetches a list of BGP speakers hosted by Dynamic Routing agent."""
+        return self.get((self.agent_path + self.BGP_DRINSTANCES)
+                        % bgp_dragent, params=_params)
+
+    @APIParamsCall
     def list_firewall_rules(self, retrieve_all=True, **_params):
         """Fetches a list of all firewall rules for a tenant."""
         # Pass filters in "params" argument to do_request
@@ -1440,7 +1626,7 @@ class Client(ClientBase):
 
     @APIParamsCall
     def list_firewalls(self, retrieve_all=True, **_params):
-        """Fetches a list of all firewals for a tenant."""
+        """Fetches a list of all firewalls for a tenant."""
         # Pass filters in "params" argument to do_request
 
         return self.list('firewalls', self.firewalls_path, retrieve_all,
@@ -1504,79 +1690,6 @@ class Client(ClientBase):
         return self.list('service_providers', self.service_providers_path,
                          retrieve_all, **_params)
 
-    def list_credentials(self, **_params):
-        """Fetch a list of all credentials for a tenant."""
-        return self.get(self.credentials_path, params=_params)
-
-    @APIParamsCall
-    def show_credential(self, credential, **_params):
-        """Fetch a credential."""
-        return self.get(self.credential_path % (credential), params=_params)
-
-    @APIParamsCall
-    def create_credential(self, body=None):
-        """Create a new credential."""
-        return self.post(self.credentials_path, body=body)
-
-    @APIParamsCall
-    def update_credential(self, credential, body=None):
-        """Update a credential."""
-        return self.put(self.credential_path % (credential), body=body)
-
-    @APIParamsCall
-    def delete_credential(self, credential):
-        """Delete the specified credential."""
-        return self.delete(self.credential_path % (credential))
-
-    def list_network_profile_bindings(self, **params):
-        """Fetch a list of all tenants associated for a network profile."""
-        return self.get(self.network_profile_bindings_path, params=params)
-
-    @APIParamsCall
-    def list_network_profiles(self, **params):
-        """Fetch a list of all network profiles for a tenant."""
-        return self.get(self.network_profiles_path, params=params)
-
-    @APIParamsCall
-    def show_network_profile(self, profile, **params):
-        """Fetch a network profile."""
-        return self.get(self.network_profile_path % (profile), params=params)
-
-    @APIParamsCall
-    def create_network_profile(self, body=None):
-        """Create a network profile."""
-        return self.post(self.network_profiles_path, body=body)
-
-    @APIParamsCall
-    def update_network_profile(self, profile, body=None):
-        """Update a network profile."""
-        return self.put(self.network_profile_path % (profile), body=body)
-
-    @APIParamsCall
-    def delete_network_profile(self, profile):
-        """Delete the network profile."""
-        return self.delete(self.network_profile_path % profile)
-
-    @APIParamsCall
-    def list_policy_profile_bindings(self, **params):
-        """Fetch a list of all tenants associated for a policy profile."""
-        return self.get(self.policy_profile_bindings_path, params=params)
-
-    @APIParamsCall
-    def list_policy_profiles(self, **params):
-        """Fetch a list of all network profiles for a tenant."""
-        return self.get(self.policy_profiles_path, params=params)
-
-    @APIParamsCall
-    def show_policy_profile(self, profile, **params):
-        """Fetch a network profile."""
-        return self.get(self.policy_profile_path % (profile), params=params)
-
-    @APIParamsCall
-    def update_policy_profile(self, profile, body=None):
-        """Update a policy profile."""
-        return self.put(self.policy_profile_path % (profile), body=body)
-
     @APIParamsCall
     def create_metering_label(self, body=None):
         """Creates a metering label."""
@@ -1621,27 +1734,6 @@ class Client(ClientBase):
         """Fetches information of a certain metering label rule."""
         return self.get(self.metering_label_rule_path %
                         (metering_label_rule), params=_params)
-
-    @APIParamsCall
-    def list_net_partitions(self, **params):
-        """Fetch a list of all network partitions for a tenant."""
-        return self.get(self.net_partitions_path, params=params)
-
-    @APIParamsCall
-    def show_net_partition(self, netpartition, **params):
-        """Fetch a network partition."""
-        return self.get(self.net_partition_path % (netpartition),
-                        params=params)
-
-    @APIParamsCall
-    def create_net_partition(self, body=None):
-        """Create a network partition."""
-        return self.post(self.net_partitions_path, body=body)
-
-    @APIParamsCall
-    def delete_net_partition(self, netpartition):
-        """Delete the network partition."""
-        return self.delete(self.net_partition_path % netpartition)
 
     @APIParamsCall
     def create_rbac_policy(self, body=None):
@@ -1715,7 +1807,7 @@ class Client(ClientBase):
 
     @APIParamsCall
     def show_bandwidth_limit_rule(self, rule, policy, body=None):
-        """Creates a new bandwidth limit rule."""
+        """Fetches information of a certain bandwidth limit rule."""
         return self.get(self.qos_bandwidth_limit_rule_path %
                         (policy, rule), body=body)
 
@@ -1737,6 +1829,205 @@ class Client(ClientBase):
         return self.delete(self.qos_bandwidth_limit_rule_path %
                            (policy, rule))
 
+    @APIParamsCall
+    def create_flavor(self, body=None):
+        """Creates a new Neutron service flavor."""
+        return self.post(self.flavors_path, body=body)
+
+    @APIParamsCall
+    def delete_flavor(self, flavor):
+        """Deletes the specified Neutron service flavor."""
+        return self.delete(self.flavor_path % (flavor))
+
+    @APIParamsCall
+    def list_flavors(self, retrieve_all=True, **_params):
+        """Fetches a list of all Neutron service flavors for a tenant."""
+        return self.list('flavors', self.flavors_path, retrieve_all,
+                         **_params)
+
+    @APIParamsCall
+    def show_flavor(self, flavor, **_params):
+        """Fetches information for a certain Neutron service flavor."""
+        return self.get(self.flavor_path % (flavor), params=_params)
+
+    @APIParamsCall
+    def update_flavor(self, flavor, body):
+        """Update a Neutron service flavor."""
+        return self.put(self.flavor_path % (flavor), body=body)
+
+    @APIParamsCall
+    def associate_flavor(self, flavor, body):
+        """Associate a Neutron service flavor with a profile."""
+        return self.post(self.flavor_profile_bindings_path %
+                         (flavor), body=body)
+
+    @APIParamsCall
+    def disassociate_flavor(self, flavor, flavor_profile):
+        """Disassociate a Neutron service flavor with a profile."""
+        return self.delete(self.flavor_profile_binding_path %
+                           (flavor, flavor_profile))
+
+    @APIParamsCall
+    def create_service_profile(self, body=None):
+        """Creates a new Neutron service flavor profile."""
+        return self.post(self.service_profiles_path, body=body)
+
+    @APIParamsCall
+    def delete_service_profile(self, flavor_profile):
+        """Deletes the specified Neutron service flavor profile."""
+        return self.delete(self.service_profile_path % (flavor_profile))
+
+    @APIParamsCall
+    def list_service_profiles(self, retrieve_all=True, **_params):
+        """Fetches a list of all Neutron service flavor profiles."""
+        return self.list('service_profiles', self.service_profiles_path,
+                         retrieve_all, **_params)
+
+    @APIParamsCall
+    def show_service_profile(self, flavor_profile, **_params):
+        """Fetches information for a certain Neutron service flavor profile."""
+        return self.get(self.service_profile_path % (flavor_profile),
+                        params=_params)
+
+    @APIParamsCall
+    def update_service_profile(self, service_profile, body):
+        """Update a Neutron service profile."""
+        return self.put(self.service_profile_path % (service_profile),
+                        body=body)
+
+    @APIParamsCall
+    def list_availability_zones(self, retrieve_all=True, **_params):
+        """Fetches a list of all availability zones."""
+        return self.list('availability_zones', self.availability_zones_path,
+                         retrieve_all, **_params)
+
+    @APIParamsCall
+    def get_auto_allocated_topology(self, tenant_id, **_params):
+        """Fetch information about a tenant's auto-allocated topology."""
+        return self.get(
+            self.auto_allocated_topology_path % tenant_id,
+            params=_params)
+
+    def validate_auto_allocated_topology_requirements(self, tenant_id):
+        """Validate requirements for getting an auto-allocated topology."""
+        return self.get_auto_allocated_topology(tenant_id, fields=['dry-run'])
+
+    @APIParamsCall
+    def list_bgp_speakers(self, retrieve_all=True, **_params):
+        """Fetches a list of all BGP speakers for a tenant."""
+        return self.list('bgp_speakers', self.bgp_speakers_path, retrieve_all,
+                         **_params)
+
+    @APIParamsCall
+    def show_bgp_speaker(self, bgp_speaker_id, **_params):
+        """Fetches information of a certain BGP speaker."""
+        return self.get(self.bgp_speaker_path % (bgp_speaker_id),
+                        params=_params)
+
+    @APIParamsCall
+    def create_bgp_speaker(self, body=None):
+        """Creates a new BGP speaker."""
+        return self.post(self.bgp_speakers_path, body=body)
+
+    @APIParamsCall
+    def update_bgp_speaker(self, bgp_speaker_id, body=None):
+        """Update a BGP speaker."""
+        return self.put(self.bgp_speaker_path % bgp_speaker_id, body=body)
+
+    @APIParamsCall
+    def delete_bgp_speaker(self, speaker_id):
+        """Deletes the specified BGP speaker."""
+        return self.delete(self.bgp_speaker_path % (speaker_id))
+
+    @APIParamsCall
+    def add_peer_to_bgp_speaker(self, speaker_id, body=None):
+        """Adds a peer to BGP speaker."""
+        return self.put((self.bgp_speaker_path % speaker_id) +
+                        "/add_bgp_peer", body=body)
+
+    @APIParamsCall
+    def remove_peer_from_bgp_speaker(self, speaker_id, body=None):
+        """Removes a peer from BGP speaker."""
+        return self.put((self.bgp_speaker_path % speaker_id) +
+                        "/remove_bgp_peer", body=body)
+
+    @APIParamsCall
+    def add_network_to_bgp_speaker(self, speaker_id, body=None):
+        """Adds a network to BGP speaker."""
+        return self.put((self.bgp_speaker_path % speaker_id) +
+                        "/add_gateway_network", body=body)
+
+    @APIParamsCall
+    def remove_network_from_bgp_speaker(self, speaker_id, body=None):
+        """Removes a network from BGP speaker."""
+        return self.put((self.bgp_speaker_path % speaker_id) +
+                        "/remove_gateway_network", body=body)
+
+    @APIParamsCall
+    def list_route_advertised_from_bgp_speaker(self, speaker_id, **_params):
+        """Fetches a list of all routes advertised by BGP speaker."""
+        return self.get((self.bgp_speaker_path % speaker_id) +
+                        "/get_advertised_routes", params=_params)
+
+    @APIParamsCall
+    def list_bgp_peers(self, **_params):
+        """Fetches a list of all BGP peers."""
+        return self.get(self.bgp_peers_path, params=_params)
+
+    @APIParamsCall
+    def show_bgp_peer(self, peer_id, **_params):
+        """Fetches information of a certain BGP peer."""
+        return self.get(self.bgp_peer_path % peer_id,
+                        params=_params)
+
+    @APIParamsCall
+    def create_bgp_peer(self, body=None):
+        """Create a new BGP peer."""
+        return self.post(self.bgp_peers_path, body=body)
+
+    @APIParamsCall
+    def update_bgp_peer(self, bgp_peer_id, body=None):
+        """Update a BGP peer."""
+        return self.put(self.bgp_peer_path % bgp_peer_id, body=body)
+
+    @APIParamsCall
+    def delete_bgp_peer(self, peer_id):
+        """Deletes the specified BGP peer."""
+        return self.delete(self.bgp_peer_path % peer_id)
+
+    @APIParamsCall
+    def list_network_ip_availabilities(self, retrieve_all=True, **_params):
+        """Fetches IP availibility information for all networks"""
+        return self.list('network_ip_availabilities',
+                         self.network_ip_availabilities_path,
+                         retrieve_all, **_params)
+
+    @APIParamsCall
+    def show_network_ip_availability(self, network, **_params):
+        """Fetches IP availability information for a specified network"""
+        return self.get(self.network_ip_availability_path % (network),
+                        params=_params)
+
+    @APIParamsCall
+    def add_tag(self, resource_type, resource_id, tag, **_params):
+        """Add a tag on the resource."""
+        return self.put(self.tag_path % (resource_type, resource_id, tag))
+
+    @APIParamsCall
+    def replace_tag(self, resource_type, resource_id, body, **_params):
+        """Replace tags on the resource."""
+        return self.put(self.tags_path % (resource_type, resource_id), body)
+
+    @APIParamsCall
+    def remove_tag(self, resource_type, resource_id, tag, **_params):
+        """Remove a tag on the resource."""
+        return self.delete(self.tag_path % (resource_type, resource_id, tag))
+
+    @APIParamsCall
+    def remove_tag_all(self, resource_type, resource_id, **_params):
+        """Remove all tags on the resource."""
+        return self.delete(self.tags_path % (resource_type, resource_id))
+
     def __init__(self, **kwargs):
         """Initialize a new client for the Neutron v2.0 API."""
         super(Client, self).__init__(**kwargs)
@@ -1746,17 +2037,19 @@ class Client(ClientBase):
         def _fx(obj, **_params):
             return self.show_ext(path, obj, **_params)
 
-        def _parent_fx(parent_id, obj, **_params):
+        def _parent_fx(obj, parent_id, **_params):
             return self.show_ext(path % parent_id, obj, **_params)
         fn = _fx if not parent_resource else _parent_fx
         setattr(self, "show_%s" % resource_singular, fn)
 
     def extend_list(self, resource_plural, path, parent_resource):
-        def _fx(**_params):
-            return self.list_ext(path, **_params)
+        def _fx(retrieve_all=True, **_params):
+            return self.list_ext(resource_plural, path,
+                                 retrieve_all, **_params)
 
-        def _parent_fx(parent_id, **_params):
-            return self.list_ext(path % parent_id, **_params)
+        def _parent_fx(parent_id, retrieve_all=True, **_params):
+            return self.list_ext(resource_plural, path % parent_id,
+                                 retrieve_all, **_params)
         fn = _fx if not parent_resource else _parent_fx
         setattr(self, "list_%s" % resource_plural, fn)
 
@@ -1773,7 +2066,7 @@ class Client(ClientBase):
         def _fx(obj):
             return self.delete_ext(path, obj)
 
-        def _parent_fx(parent_id, obj):
+        def _parent_fx(obj, parent_id):
             return self.delete_ext(path % parent_id, obj)
         fn = _fx if not parent_resource else _parent_fx
         setattr(self, "delete_%s" % resource_singular, fn)
@@ -1782,7 +2075,7 @@ class Client(ClientBase):
         def _fx(obj, body=None):
             return self.update_ext(path, obj, body)
 
-        def _parent_fx(parent_id, obj, body=None):
+        def _parent_fx(obj, parent_id, body=None):
             return self.update_ext(path % parent_id, obj, body)
         fn = _fx if not parent_resource else _parent_fx
         setattr(self, "update_%s" % resource_singular, fn)

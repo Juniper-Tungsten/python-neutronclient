@@ -14,8 +14,8 @@
 #    under the License.
 #
 
+from neutronclient._i18n import _
 from neutronclient.common import utils
-from neutronclient.i18n import _
 from neutronclient.neutron import v2_0 as neutronv20
 from neutronclient.neutron.v2_0.vpn import utils as vpn_utils
 
@@ -35,6 +35,7 @@ class ShowIKEPolicy(neutronv20.ShowCommand):
     """Show information of a given IKE policy."""
 
     resource = 'ikepolicy'
+    help_resource = 'IKE policy'
 
 
 class CreateIKEPolicy(neutronv20.CreateCommand):
@@ -70,7 +71,7 @@ class CreateIKEPolicy(neutronv20.CreateCommand):
         parser.add_argument(
             '--lifetime',
             metavar="units=UNITS,value=VALUE",
-            type=utils.str2dict,
+            type=utils.str2dict_type(optional_keys=['units', 'value']),
             help=vpn_utils.lifetime_help("IKE"))
         parser.add_argument(
             'name', metavar='NAME',
@@ -93,12 +94,13 @@ class UpdateIKEPolicy(neutronv20.UpdateCommand):
     """Update a given IKE policy."""
 
     resource = 'ikepolicy'
+    help_resource = 'IKE policy'
 
     def add_known_arguments(self, parser):
         parser.add_argument(
             '--lifetime',
             metavar="units=UNITS,value=VALUE",
-            type=utils.str2dict,
+            type=utils.str2dict_type(optional_keys=['units', 'value']),
             help=vpn_utils.lifetime_help("IKE"))
 
     def args2body(self, parsed_args):
@@ -114,3 +116,4 @@ class DeleteIKEPolicy(neutronv20.DeleteCommand):
     """Delete a given IKE policy."""
 
     resource = 'ikepolicy'
+    help_resource = 'IKE policy'
