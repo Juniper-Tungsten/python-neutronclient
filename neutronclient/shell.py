@@ -73,6 +73,7 @@ from neutronclient.neutron.v2_0 import port
 from neutronclient.neutron.v2_0 import purge
 from neutronclient.neutron.v2_0.qos import bandwidth_limit_rule
 from neutronclient.neutron.v2_0.qos import dscp_marking_rule
+from neutronclient.neutron.v2_0.qos import minimum_bandwidth_rule
 from neutronclient.neutron.v2_0.qos import policy as qos_policy
 from neutronclient.neutron.v2_0.qos import rule as qos_rule
 from neutronclient.neutron.v2_0 import quota
@@ -184,6 +185,7 @@ COMMAND_V2 = {
     'purge': purge.Purge,
     'quota-list': quota.ListQuota,
     'quota-show': quota.ShowQuota,
+    'quota-default-show': quota.ShowQuotaDefault,
     'quota-delete': quota.DeleteQuota,
     'quota-update': quota.UpdateQuota,
     'ext-list': extension.ListExt,
@@ -399,6 +401,21 @@ COMMAND_V2 = {
     'qos-dscp-marking-rule-delete': (
         dscp_marking_rule.DeleteQoSDscpMarkingRule
     ),
+    'qos-minimum-bandwidth-rule-create': (
+        minimum_bandwidth_rule.CreateQoSMinimumBandwidthRule
+    ),
+    'qos-minimum-bandwidth-rule-show': (
+        minimum_bandwidth_rule.ShowQoSMinimumBandwidthRule
+    ),
+    'qos-minimum-bandwidth-rule-list': (
+        minimum_bandwidth_rule.ListQoSMinimumBandwidthRules
+    ),
+    'qos-minimum-bandwidth-rule-update': (
+        minimum_bandwidth_rule.UpdateQoSMinimumBandwidthRule
+    ),
+    'qos-minimum-bandwidth-rule-delete': (
+        minimum_bandwidth_rule.DeleteQoSMinimumBandwidthRule
+    ),
     'qos-available-rule-types': qos_rule.ListQoSRuleTypes,
     'ipam-list': ipam.ListIpam, # BEGIN Contrail extensions
     'ipam-show': ipam.ShowIpam,
@@ -433,6 +450,8 @@ COMMAND_V2 = {
     'availability-zone-list': availability_zone.ListAvailabilityZone,
     'auto-allocated-topology-show': (
         auto_allocated_topology.ShowAutoAllocatedTopology),
+    'auto-allocated-topology-delete': (
+        auto_allocated_topology.DeleteAutoAllocatedTopology),
     'bgp-dragent-speaker-add': (
         bgp_drsched.AddBGPSpeakerToDRAgent
     ),
@@ -622,12 +641,10 @@ class NeutronShell(app.App):
 
         parser.add_argument(
             '--os-cloud', metavar='<cloud>',
-            default=env('OS_CLOUD', default=None),
             help=_('Defaults to env[OS_CLOUD].'))
 
         parser.add_argument(
             '--os-auth-url', metavar='<auth-url>',
-            default=env('OS_AUTH_URL'),
             help=_('Authentication URL, defaults to env[OS_AUTH_URL].'))
         parser.add_argument(
             '--os_auth_url',
@@ -636,13 +653,11 @@ class NeutronShell(app.App):
         project_name_group = parser.add_mutually_exclusive_group()
         project_name_group.add_argument(
             '--os-tenant-name', metavar='<auth-tenant-name>',
-            default=env('OS_TENANT_NAME'),
             help=_('Authentication tenant name, defaults to '
                    'env[OS_TENANT_NAME].'))
         project_name_group.add_argument(
             '--os-project-name',
             metavar='<auth-project-name>',
-            default=utils.env('OS_PROJECT_NAME'),
             help=_('Another way to specify tenant name. '
                    'This option is mutually exclusive with '
                    ' --os-tenant-name. '
@@ -655,13 +670,11 @@ class NeutronShell(app.App):
         project_id_group = parser.add_mutually_exclusive_group()
         project_id_group.add_argument(
             '--os-tenant-id', metavar='<auth-tenant-id>',
-            default=env('OS_TENANT_ID'),
             help=_('Authentication tenant ID, defaults to '
                    'env[OS_TENANT_ID].'))
         project_id_group.add_argument(
             '--os-project-id',
             metavar='<auth-project-id>',
-            default=utils.env('OS_PROJECT_ID'),
             help=_('Another way to specify tenant ID. '
                    'This option is mutually exclusive with '
                    ' --os-tenant-id. '
@@ -669,7 +682,6 @@ class NeutronShell(app.App):
 
         parser.add_argument(
             '--os-username', metavar='<auth-username>',
-            default=utils.env('OS_USERNAME'),
             help=_('Authentication username, defaults to env[OS_USERNAME].'))
         parser.add_argument(
             '--os_username',
@@ -677,7 +689,6 @@ class NeutronShell(app.App):
 
         parser.add_argument(
             '--os-user-id', metavar='<auth-user-id>',
-            default=env('OS_USER_ID'),
             help=_('Authentication user ID (Env: OS_USER_ID)'))
 
         parser.add_argument(
@@ -687,7 +698,6 @@ class NeutronShell(app.App):
         parser.add_argument(
             '--os-user-domain-id',
             metavar='<auth-user-domain-id>',
-            default=utils.env('OS_USER_DOMAIN_ID'),
             help=_('OpenStack user domain ID. '
                    'Defaults to env[OS_USER_DOMAIN_ID].'))
 
@@ -698,7 +708,6 @@ class NeutronShell(app.App):
         parser.add_argument(
             '--os-user-domain-name',
             metavar='<auth-user-domain-name>',
-            default=utils.env('OS_USER_DOMAIN_NAME'),
             help=_('OpenStack user domain name. '
                    'Defaults to env[OS_USER_DOMAIN_NAME].'))
 
@@ -717,19 +726,16 @@ class NeutronShell(app.App):
         parser.add_argument(
             '--os-project-domain-id',
             metavar='<auth-project-domain-id>',
-            default=utils.env('OS_PROJECT_DOMAIN_ID'),
             help=_('Defaults to env[OS_PROJECT_DOMAIN_ID].'))
 
         parser.add_argument(
             '--os-project-domain-name',
             metavar='<auth-project-domain-name>',
-            default=utils.env('OS_PROJECT_DOMAIN_NAME'),
             help=_('Defaults to env[OS_PROJECT_DOMAIN_NAME].'))
 
         parser.add_argument(
             '--os-cert',
             metavar='<certificate>',
-            default=utils.env('OS_CERT'),
             help=_("Path of certificate file to use in SSL "
                    "connection. This file can optionally be "
                    "prepended with the private key. Defaults "
@@ -738,7 +744,6 @@ class NeutronShell(app.App):
         parser.add_argument(
             '--os-cacert',
             metavar='<ca-certificate>',
-            default=env('OS_CACERT', default=None),
             help=_("Specify a CA bundle file to use in "
                    "verifying a TLS (https) server certificate. "
                    "Defaults to env[OS_CACERT]."))
@@ -746,7 +751,6 @@ class NeutronShell(app.App):
         parser.add_argument(
             '--os-key',
             metavar='<key>',
-            default=utils.env('OS_KEY'),
             help=_("Path of client key to use in SSL "
                    "connection. This option is not necessary "
                    "if your key is prepended to your certificate "
@@ -754,7 +758,6 @@ class NeutronShell(app.App):
 
         parser.add_argument(
             '--os-password', metavar='<auth-password>',
-            default=utils.env('OS_PASSWORD'),
             help=_('Authentication password, defaults to env[OS_PASSWORD].'))
         parser.add_argument(
             '--os_password',
@@ -762,7 +765,6 @@ class NeutronShell(app.App):
 
         parser.add_argument(
             '--os-region-name', metavar='<auth-region-name>',
-            default=env('OS_REGION_NAME'),
             help=_('Authentication region name, defaults to '
                    'env[OS_REGION_NAME].'))
         parser.add_argument(
@@ -771,7 +773,6 @@ class NeutronShell(app.App):
 
         parser.add_argument(
             '--os-token', metavar='<token>',
-            default=env('OS_TOKEN'),
             help=_('Authentication token, defaults to env[OS_TOKEN].'))
         parser.add_argument(
             '--os_token',
@@ -785,7 +786,6 @@ class NeutronShell(app.App):
 
         parser.add_argument(
             '--os-url', metavar='<url>',
-            default=env('OS_URL'),
             help=_('Defaults to env[OS_URL].'))
         parser.add_argument(
             '--os_url',
