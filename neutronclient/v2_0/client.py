@@ -18,6 +18,7 @@
 import inspect
 import itertools
 import logging
+import re
 import time
 
 import debtcollector.renames
@@ -34,6 +35,11 @@ from neutronclient.common import utils
 
 
 _logger = logging.getLogger(__name__)
+
+HEX_ELEM = '[0-9A-Fa-f]'
+UUID_PATTERN = '-'.join([HEX_ELEM + '{8}', HEX_ELEM + '{4}',
+                         HEX_ELEM + '{4}', HEX_ELEM + '{4}',
+                         HEX_ELEM + '{12}'])
 
 
 def exception_handler_v20(status_code, error_content):
@@ -112,6 +118,13 @@ class _RequestIdMixin(object):
             # Extract 'x-openstack-request-id' from headers if
             # response is a Response object.
             request_id = resp.headers.get('x-openstack-request-id')
+            # log request-id for each api call
+            _logger.debug('%(method)s call to neutron for '
+                          '%(url)s used request id '
+                          '%(response_request_id)s',
+                          {'method': resp.request.method,
+                           'url': resp.url,
+                           'response_request_id': request_id})
         else:
             # If resp is of type string.
             request_id = resp
@@ -396,6 +409,88 @@ class ClientBase(object):
         else:
             return _TupleWithMeta((), resp)
 
+    def get_resource_plural(self, resource):
+        for k in self.EXTED_PLURALS:
+            if self.EXTED_PLURALS[k] == resource:
+                return k
+        return resource + 's'
+
+    def find_resource_by_id(self, resource, resource_id, cmd_resource=None,
+                            parent_id=None, fields=None):
+        if not cmd_resource:
+            cmd_resource = resource
+        cmd_resource_plural = self.get_resource_plural(cmd_resource)
+        resource_plural = self.get_resource_plural(resource)
+        # TODO(amotoki): Use show_%s instead of list_%s
+        obj_lister = getattr(self, "list_%s" % cmd_resource_plural)
+        # perform search by id only if we are passing a valid UUID
+        match = re.match(UUID_PATTERN, resource_id)
+        collection = resource_plural
+        if match:
+            params = {'id': resource_id}
+            if fields:
+                params['fields'] = fields
+            if parent_id:
+                data = obj_lister(parent_id, **params)
+            else:
+                data = obj_lister(**params)
+            if data and data[collection]:
+                return data[collection][0]
+        not_found_message = (_("Unable to find %(resource)s with id "
+                               "'%(id)s'") %
+                             {'resource': resource, 'id': resource_id})
+        # 404 is raised by exceptions.NotFound to simulate serverside behavior
+        raise exceptions.NotFound(message=not_found_message)
+
+    def _find_resource_by_name(self, resource, name, project_id=None,
+                               cmd_resource=None, parent_id=None, fields=None):
+        if not cmd_resource:
+            cmd_resource = resource
+        cmd_resource_plural = self.get_resource_plural(cmd_resource)
+        resource_plural = self.get_resource_plural(resource)
+        obj_lister = getattr(self, "list_%s" % cmd_resource_plural)
+        params = {'name': name}
+        if fields:
+            params['fields'] = fields
+        if project_id:
+            params['tenant_id'] = project_id
+        if parent_id:
+            data = obj_lister(parent_id, **params)
+        else:
+            data = obj_lister(**params)
+        collection = resource_plural
+        info = data[collection]
+        if len(info) > 1:
+            raise exceptions.NeutronClientNoUniqueMatch(resource=resource,
+                                                        name=name)
+        elif len(info) == 0:
+            not_found_message = (_("Unable to find %(resource)s with name "
+                                   "'%(name)s'") %
+                                 {'resource': resource, 'name': name})
+            # 404 is raised by exceptions.NotFound
+            # to simulate serverside behavior
+            raise exceptions.NotFound(message=not_found_message)
+        else:
+            return info[0]
+
+    def find_resource(self, resource, name_or_id, project_id=None,
+                      cmd_resource=None, parent_id=None, fields=None):
+        try:
+            return self.find_resource_by_id(resource, name_or_id,
+                                            cmd_resource, parent_id, fields)
+        except exceptions.NotFound:
+            try:
+                return self._find_resource_by_name(
+                    resource, name_or_id, project_id,
+                    cmd_resource, parent_id, fields)
+            except exceptions.NotFound:
+                not_found_message = (_("Unable to find %(resource)s with name "
+                                       "or id '%(name_or_id)s'") %
+                                     {'resource': resource,
+                                      'name_or_id': name_or_id})
+                raise exceptions.NotFound(
+                    message=not_found_message)
+
 
 class Client(ClientBase):
 
@@ -529,6 +624,11 @@ class Client(ClientBase):
     network_ip_availability_path = '/network-ip-availabilities/%s'
     tags_path = "/%s/%s/tags"
     tag_path = "/%s/%s/tags/%s"
+    trunks_path = "/trunks"
+    trunk_path = "/trunks/%s"
+    subports_path = "/trunks/%s/get_subports"
+    subports_add_path = "/trunks/%s/add_subports"
+    subports_remove_path = "/trunks/%s/remove_subports"
 
     # API has no way to report plurals, so we have to hard code them
     EXTED_PLURALS = {'routers': 'router',
@@ -574,6 +674,7 @@ class Client(ClientBase):
                      'bgp_speakers': 'bgp_speaker',
                      'bgp_peers': 'bgp_peer',
                      'network_ip_availabilities': 'network_ip_availability',
+                     'trunks': 'trunk',
                      }
 
     def list_ext(self, collection, path, retrieve_all, **_params):
@@ -1927,6 +2028,39 @@ class Client(ClientBase):
     def remove_tag_all(self, resource_type, resource_id, **_params):
         """Remove all tags on the resource."""
         return self.delete(self.tags_path % (resource_type, resource_id))
+
+    def create_trunk(self, body=None):
+        """Create a trunk port."""
+        return self.post(self.trunks_path, body=body)
+
+    def update_trunk(self, trunk, body=None):
+        """Update a trunk port."""
+        return self.put(self.trunk_path % trunk, body=body)
+
+    def delete_trunk(self, trunk):
+        """Delete a trunk port."""
+        return self.delete(self.trunk_path % (trunk))
+
+    def list_trunks(self, retrieve_all=True, **_params):
+        """Fetch a list of all trunk ports."""
+        return self.list('trunks', self.trunks_path, retrieve_all,
+                         **_params)
+
+    def show_trunk(self, trunk, **_params):
+        """Fetch information for a certain trunk port."""
+        return self.get(self.trunk_path % (trunk), params=_params)
+
+    def trunk_add_subports(self, trunk, body=None):
+        """Add specified subports to the trunk."""
+        return self.put(self.subports_add_path % (trunk), body=body)
+
+    def trunk_remove_subports(self, trunk, body=None):
+        """Removes specified subports from the trunk."""
+        return self.put(self.subports_remove_path % (trunk), body=body)
+
+    def trunk_get_subports(self, trunk, **_params):
+        """Fetch a list of all subports attached to given trunk."""
+        return self.get(self.subports_path % (trunk), params=_params)
 
     def __init__(self, **kwargs):
         """Initialize a new client for the Neutron v2.0 API."""
