@@ -476,7 +476,7 @@ class Client(ClientBase):
                      'rbac_policies': 'rbac_policy',
                      'address_scopes': 'address_scope',
                      'qos_policies': 'qos_policy',
-                     'policies': 'policy',
+                     'policys': 'policy',
                      'bandwidth_limit_rules': 'bandwidth_limit_rule',
                      'rule_types': 'rule_type',
                      }
