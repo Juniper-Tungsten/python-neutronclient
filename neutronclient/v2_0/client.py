@@ -22,6 +22,7 @@ import re
 import time
 
 import debtcollector.renames
+from keystoneauth1 import exceptions as ksa_exc
 import requests
 import six.moves.urllib.parse as urlparse
 from six import string_types
@@ -335,7 +336,7 @@ class ClientBase(object):
             try:
                 return self.do_request(method, action, body=body,
                                        headers=headers, params=params)
-            except exceptions.ConnectionFailed:
+            except (exceptions.ConnectionFailed, ksa_exc.ConnectionError):
                 # Exception has already been logged by do_request()
                 if i < self.retries:
                     _logger.debug('Retrying connection to Neutron service')
@@ -595,6 +596,16 @@ class Client(ClientBase):
     firewall_policy_remove_path = "/fw/firewall_policies/%s/remove_rule"
     firewalls_path = "/fw/firewalls"
     firewall_path = "/fw/firewalls/%s"
+    fwaas_firewall_groups_path = "/fwaas/firewall_groups"
+    fwaas_firewall_group_path = "/fwaas/firewall_groups/%s"
+    fwaas_firewall_rules_path = "/fwaas/firewall_rules"
+    fwaas_firewall_rule_path = "/fwaas/firewall_rules/%s"
+    fwaas_firewall_policies_path = "/fwaas/firewall_policies"
+    fwaas_firewall_policy_path = "/fwaas/firewall_policies/%s"
+    fwaas_firewall_policy_insert_path = \
+        "/fwaas/firewall_policies/%s/insert_rule"
+    fwaas_firewall_policy_remove_path = \
+        "/fwaas/firewall_policies/%s/remove_rule"
     rbac_policies_path = "/rbac-policies"
     rbac_policy_path = "/rbac-policies/%s"
     qos_policies_path = "/qos/policies"
@@ -656,6 +667,9 @@ class Client(ClientBase):
                      'firewall_rules': 'firewall_rule',
                      'firewall_policies': 'firewall_policy',
                      'firewalls': 'firewall',
+                     'fwaas_firewall_rules': 'fwaas_firewall_rule',
+                     'fwaas_firewall_policies': 'fwaas_firewall_policy',
+                     'fwaas_firewall_groups': 'fwaas_firewall_group',
                      'metering_labels': 'metering_label',
                      'metering_label_rules': 'metering_label_rule',
                      'loadbalancers': 'loadbalancer',
@@ -1699,6 +1713,87 @@ class Client(ClientBase):
         """Deletes the specified firewall."""
         return self.delete(self.firewall_path % (firewall))
 
+    def list_fwaas_firewall_groups(self, retrieve_all=True, **_params):
+        """Fetches a list of all firewall groups for a project"""
+        return self.list('firewall_groups', self.fwaas_firewall_groups_path,
+                         retrieve_all, **_params)
+
+    def show_fwaas_firewall_group(self, fwg, **_params):
+        """Fetches information of a certain firewall group"""
+        return self.get(self.fwaas_firewall_group_path % (fwg), params=_params)
+
+    def create_fwaas_firewall_group(self, body=None):
+        """Creates a new firewall group"""
+        return self.post(self.fwaas_firewall_groups_path, body=body)
+
+    def update_fwaas_firewall_group(self, fwg, body=None):
+        """Updates a firewall group"""
+        return self.put(self.fwaas_firewall_group_path % (fwg), body=body)
+
+    def delete_fwaas_firewall_group(self, fwg):
+        """Deletes the specified firewall group"""
+        return self.delete(self.fwaas_firewall_group_path % (fwg))
+
+    def list_fwaas_firewall_rules(self, retrieve_all=True, **_params):
+        """Fetches a list of all firewall rules for a project"""
+        # Pass filters in "params" argument to do_request
+        return self.list('firewall_rules', self.fwaas_firewall_rules_path,
+                         retrieve_all, **_params)
+
+    def show_fwaas_firewall_rule(self, firewall_rule, **_params):
+        """Fetches information of a certain firewall rule"""
+        return self.get(self.fwaas_firewall_rule_path % (firewall_rule),
+                        params=_params)
+
+    def create_fwaas_firewall_rule(self, body=None):
+        """Creates a new firewall rule"""
+        return self.post(self.fwaas_firewall_rules_path, body=body)
+
+    def update_fwaas_firewall_rule(self, firewall_rule, body=None):
+        """Updates a firewall rule"""
+        return self.put(self.fwaas_firewall_rule_path % (firewall_rule),
+                        body=body)
+
+    def delete_fwaas_firewall_rule(self, firewall_rule):
+        """Deletes the specified firewall rule"""
+        return self.delete(self.fwaas_firewall_rule_path % (firewall_rule))
+
+    def list_fwaas_firewall_policies(self, retrieve_all=True, **_params):
+        """Fetches a list of all firewall policies for a project"""
+        # Pass filters in "params" argument to do_request
+
+        return self.list('firewall_policies',
+                         self.fwaas_firewall_policies_path,
+                         retrieve_all, **_params)
+
+    def show_fwaas_firewall_policy(self, firewall_policy, **_params):
+        """Fetches information of a certain firewall policy"""
+        return self.get(self.fwaas_firewall_policy_path % (firewall_policy),
+                        params=_params)
+
+    def create_fwaas_firewall_policy(self, body=None):
+        """Creates a new firewall policy"""
+        return self.post(self.fwaas_firewall_policies_path, body=body)
+
+    def update_fwaas_firewall_policy(self, firewall_policy, body=None):
+        """Updates a firewall policy"""
+        return self.put(self.fwaas_firewall_policy_path % (firewall_policy),
+                        body=body)
+
+    def delete_fwaas_firewall_policy(self, firewall_policy):
+        """Deletes the specified firewall policy"""
+        return self.delete(self.fwaas_firewall_policy_path % (firewall_policy))
+
+    def insert_rule_fwaas_firewall_policy(self, firewall_policy, body=None):
+        """Inserts specified rule into firewall policy"""
+        return self.put((self.fwaas_firewall_policy_insert_path %
+                        (firewall_policy)), body=body)
+
+    def remove_rule_fwaas_firewall_policy(self, firewall_policy, body=None):
+        """Removes specified rule from firewall policy"""
+        return self.put((self.fwaas_firewall_policy_remove_path %
+                        (firewall_policy)), body=body)
+
     def remove_router_from_l3_agent(self, l3_agent, router_id):
         """Remove a router from l3 agent."""
         return self.delete((self.agent_path + self.L3_ROUTERS + "/%s") % (
@@ -1878,7 +1973,7 @@ class Client(ClientBase):
         """Fetches a list of all minimum bandwidth rules for the given policy.
 
         """
-        return self.list('qos_minimum_bandwidth_rules',
+        return self.list('minimum_bandwidth_rules',
                          self.qos_minimum_bandwidth_rules_path %
                          policy_id, retrieve_all, **_params)
 
@@ -2052,7 +2147,7 @@ class Client(ClientBase):
         return self.delete(self.bgp_peer_path % peer_id)
 
     def list_network_ip_availabilities(self, retrieve_all=True, **_params):
-        """Fetches IP availibility information for all networks"""
+        """Fetches IP availability information for all networks"""
         return self.list('network_ip_availabilities',
                          self.network_ip_availabilities_path,
                          retrieve_all, **_params)

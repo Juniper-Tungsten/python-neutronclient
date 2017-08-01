@@ -70,6 +70,7 @@ Transition Steps
 4. **In Progress:** OpenStack Python SDK releases version 1.0 to guarantee
    backwards compatibility of its networking support and OSC updates
    its dependencies to include OpenStack Python SDK version 1.0 or later.
+   See the following blueprint: https://blueprints.launchpad.net/python-openstackclient/+spec/network-command-sdk-support
 
 5. **Done:** OSC switches its networking support for the
    `ip floating <http://docs.openstack.org/developer/python-openstackclient/command-objects/ip-floating.html>`_,
@@ -97,12 +98,15 @@ Transition Steps
    should start their transition to the OSC plugin system. See the
    developer guide section below for more information on this step.
 
-7. **Not Started:** Deprecate the ``neutron`` CLI once the criteria below have
-   been meet. Running the CLI after it has been deprecated will issue a warning
-   messages such as the following:
-   ``DeprecationWarning: The neutron CLI is deprecated in favor of python-openstackclient.``
-   In addition, only security fixes will be made to the CLI after it has been
-   deprecated.
+7. **In Progress:** Deprecate the ``neutron`` CLI. Running the CLI after
+   it has been `deprecated <https://review.openstack.org/#/c/393903/>`_
+   will issue a warning message:
+   ``neutron CLI is deprecated and will be removed in the future. Use openstack CLI instead.``
+   In addition, no new features will be added to the CLI, though fixes to
+   the CLI will be assessed on a case by case basis.
+
+8. **Not Started:** Remove the ``neutron`` CLI after two deprecation cycles
+   once the criteria below have been met.
 
    * The networking support provide by the ``openstack`` CLI is functionally
      equivalent to the ``neutron`` CLI and it contains sufficient functional
@@ -116,13 +120,11 @@ Transition Steps
      to the OSC plugin system and use the ``openstack`` CLI instead of the
      ``neutron`` CLI.
 
-8. **Not Started:** Remove the ``neutron`` CLI after two deprecation cycles.
-
 Developer Guide
 ---------------
-The ``neutron`` CLI version 4.x, without extensions, supports over 200
-commands while the ``openstack`` CLI version 2.6.0 supports over 50
-networking commands. Of the 50 commands, some do not have all of the options
+The ``neutron`` CLI version 6.x, without extensions, supports over 200
+commands while the ``openstack`` CLI version 3.3.0 supports over 70
+networking commands. Of the 70 commands, some do not have all of the options
 or arguments of their ``neutron`` CLI equivalent. With this large functional
 gap, a few critical questions for developers during this transition are "Which
 CLI do I change?", "Where does my CLI belong?", and "Which Python library do I change?"
@@ -149,32 +151,33 @@ dual maintenance.
 
 **Where does my CLI belong?**
 
+If you are developing an API in any of the `neutron repos <http://governance.openstack.org/reference/projects/neutron.html>`_
+the client-side support must be generally located in either the openstackclient or neutronclient
+repos. Whether the actual code goes into one or the other repo it depends on the nature of the
+feature, its maturity level, and/or the depth of feedback required during the development.
+
+The table below provides an idea of what goes where. Generally speaking, we consider Core anything
+that is L2 and L3 related or that it has been located in the neutron repo for quite sometime, e.g.
+QoS or Metering, or that it is available in each neutron deployment irrespective of its configuration
+(e.g. auto-allocated-topology). Any client feature that falls into this categorization will need to
+be contributed in OSC. Any other that does not, will need to go into neutronclient, assuming that
+its server-side is located in a neutron controlled repo. This is a general guideline, when in doubt,
+please reach out to a member of the neutron core team for clarifications.
+
 +---------------------------+-------------------+-------------------------------------------------+
 | Networking Commands       | OSC Plugin        | OpenStack Project for ``openstack`` Commands    |
 +===========================+===================+=================================================+
 | Core                      | No                | python-openstackclient                          |
 +---------------------------+-------------------+-------------------------------------------------+
-| Advanced Feature          | Yes               | python-neutronclient                            |
-| (neutron repository)      |                   | (``neutronclient/osc/v2/<advanced_feature>``)   |
-+---------------------------+-------------------+-------------------------------------------------+
-| Dynamic Routing           | Yes               | python-neutronclient                            |
-|                           |                   | (``neutronclient/osc/v2/dynamic_routing``)      |
-+---------------------------+-------------------+-------------------------------------------------+
-| FWaaS v1                  | N/A               | None (deprecated)                               |
-+---------------------------+-------------------+-------------------------------------------------+
-| FWaaS v2                  | Yes               | python-neutronclient                            |
-|                           |                   | (``neutronclient/osc/v2/fwaas``)                |
-+---------------------------+-------------------+-------------------------------------------------+
-| LBaaS v1                  | N/A               | None (deprecated)                               |
-+---------------------------+-------------------+-------------------------------------------------+
-| LBaaS v2                  | Yes               | python-neutronclient                            |
-|                           |                   | (``neutronclient/osc/v2/lbaas``)                |
-+---------------------------+-------------------+-------------------------------------------------+
-| VPNaaS                    | Yes               | python-neutronclient                            |
-|                           |                   | (``neutronclient/osc/v2/vpnaas``)               |
+| Extension                 | Yes               | python-neutronclient                            |
+| (i.e. neutron stadium)    |                   | (``neutronclient/osc/v2/<extension>``)          |
 +---------------------------+-------------------+-------------------------------------------------+
 | Other                     | Yes               | Applicable project owning networking resource   |
 +---------------------------+-------------------+-------------------------------------------------+
+
+When a repo stops being under neutron governance, its client-side counterpart will have to go through
+deprecation. Bear in mind that for grandfathered extensions like FWaaS v1, VPNaaS, and LBaaS v1, this
+is not required as the neutronclient is already deprecated on its own.
 
 **Which Python library do I change?**
 

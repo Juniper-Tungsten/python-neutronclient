@@ -16,6 +16,7 @@
 
 import contextlib
 import itertools
+import json
 import sys
 
 import mock
@@ -25,11 +26,13 @@ from oslotest import base
 import requests
 import six
 import six.moves.urllib.parse as urlparse
+import yaml
 
 from neutronclient.common import constants
 from neutronclient.common import exceptions
 from neutronclient.common import utils
 from neutronclient.neutron import v2_0 as neutronV2_0
+from neutronclient.neutron.v2_0 import network
 from neutronclient import shell
 from neutronclient.v2_0 import client
 
@@ -512,7 +515,9 @@ class CLITestV20Base(base.BaseTestCase):
         self.assertIn(myid, _str)
         self.assertIn('myname', _str)
 
-    def _test_set_path_and_delete(self, path, parent_id, myid):
+    def _test_set_path_and_delete(self, path, parent_id, myid,
+                                  delete_fail=False):
+        return_val = 404 if delete_fail else 204
         if parent_id:
             path = path % (parent_id, myid)
         else:
@@ -521,11 +526,12 @@ class CLITestV20Base(base.BaseTestCase):
             end_url(path, format=self.format), 'DELETE',
             body=None,
             headers=mox.ContainsKeyValue(
-                'X-Auth-Token', TOKEN)).AndReturn((MyResp(204), None))
+                'X-Auth-Token', TOKEN)).AndReturn((MyResp(
+                    return_val), None))
 
     def _test_delete_resource(self, resource, cmd, myid, args,
                               cmd_resource=None, parent_id=None,
-                              extra_id=None):
+                              extra_id=None, delete_fail=False):
         self.mox.StubOutWithMock(cmd, "get_client")
         self.mox.StubOutWithMock(self.client.httpclient, "request")
         cmd.get_client().MultipleTimes().AndReturn(self.client)
@@ -535,7 +541,8 @@ class CLITestV20Base(base.BaseTestCase):
         self._test_set_path_and_delete(path, parent_id, myid)
         # extra_id is used to test for bulk_delete
         if extra_id:
-            self._test_set_path_and_delete(path, parent_id, extra_id)
+            self._test_set_path_and_delete(path, parent_id, extra_id,
+                                           delete_fail)
         self.mox.ReplayAll()
         cmd_parser = cmd.get_parser("delete_" + cmd_resource)
         shell.run_command(cmd, cmd_parser, args)
@@ -561,7 +568,7 @@ class CLITestV20Base(base.BaseTestCase):
             headers=mox.ContainsKeyValue(
                 'X-Auth-Token', TOKEN)).AndReturn((MyResp(204), retval))
         self.mox.ReplayAll()
-        cmd_parser = cmd.get_parser("delete_" + cmd_resource)
+        cmd_parser = cmd.get_parser("update_" + cmd_resource)
         shell.run_command(cmd, cmd_parser, args)
         self.mox.VerifyAll()
         self.mox.UnsetStubs()
@@ -1028,3 +1035,86 @@ class GeneratorWithMetaTest(base.BaseTestCase):
 
         self.assertTrue(hasattr(obj, 'request_ids'))
         self.assertEqual([REQUEST_ID], obj.request_ids)
+
+
+class CLITestV20OutputFormatter(CLITestV20Base):
+
+    def _test_create_resource_with_formatter(self, fmt):
+        resource = 'network'
+        cmd = network.CreateNetwork(MyApp(sys.stdout), None)
+        args = ['-f', fmt, 'myname']
+        position_names = ['name']
+        position_values = ['myname']
+        self._test_create_resource(resource, cmd, 'myname', 'myid', args,
+                                   position_names, position_values)
+
+    def test_create_resource_table(self):
+        self._test_create_resource_with_formatter('table')
+        print(self.fake_stdout.content)
+        # table data is contains in the third element.
+        data = self.fake_stdout.content[2].split('\n')
+        self.assertTrue(any(' id ' in d for d in data))
+        self.assertTrue(any(' name ' in d for d in data))
+
+    def test_create_resource_json(self):
+        self._test_create_resource_with_formatter('json')
+        data = json.loads(self.fake_stdout.make_string())
+        self.assertEqual('myname', data['name'])
+        self.assertEqual('myid', data['id'])
+
+    def test_create_resource_yaml(self):
+        self._test_create_resource_with_formatter('yaml')
+        data = yaml.load(self.fake_stdout.make_string())
+        self.assertEqual('myname', data['name'])
+        self.assertEqual('myid', data['id'])
+
+    def _test_show_resource_with_formatter(self, fmt):
+        resource = 'network'
+        cmd = network.ShowNetwork(MyApp(sys.stdout), None)
+        args = ['-f', fmt, '-F', 'id', '-F', 'name', 'myid']
+        self._test_show_resource(resource, cmd, 'myid',
+                                 args, ['id', 'name'])
+
+    def test_show_resource_table(self):
+        self._test_show_resource_with_formatter('table')
+        data = self.fake_stdout.content[0].split('\n')
+        self.assertTrue(any(' id ' in d for d in data))
+        self.assertTrue(any(' name ' in d for d in data))
+
+    def test_show_resource_json(self):
+        self._test_show_resource_with_formatter('json')
+        data = json.loads(''.join(self.fake_stdout.content))
+        self.assertEqual('myname', data['name'])
+        self.assertEqual('myid', data['id'])
+
+    def test_show_resource_yaml(self):
+        self._test_show_resource_with_formatter('yaml')
+        data = yaml.load(''.join(self.fake_stdout.content))
+        self.assertEqual('myname', data['name'])
+        self.assertEqual('myid', data['id'])
+
+    def _test_list_resources_with_formatter(self, fmt):
+        resources = 'networks'
+        cmd = network.ListNetwork(MyApp(sys.stdout), None)
+        # ListNetwork has its own extend_list, so we need to stub out it
+        # to avoid an extra API call.
+        self.mox.StubOutWithMock(network.ListNetwork, "extend_list")
+        network.ListNetwork.extend_list(mox.IsA(list), mox.IgnoreArg())
+        self._test_list_resources(resources, cmd, output_format=fmt)
+
+    def test_list_resources_table(self):
+        self._test_list_resources_with_formatter('table')
+        data = self.fake_stdout.content[0].split('\n')
+        self.assertTrue(any(' id ' in d for d in data))
+        self.assertTrue(any(' myid1 ' in d for d in data))
+        self.assertTrue(any(' myid2 ' in d for d in data))
+
+    def test_list_resources_json(self):
+        self._test_list_resources_with_formatter('json')
+        data = json.loads(''.join(self.fake_stdout.content))
+        self.assertEqual(['myid1', 'myid2'], [d['id'] for d in data])
+
+    def test_list_resources_yaml(self):
+        self._test_list_resources_with_formatter('yaml')
+        data = yaml.load(''.join(self.fake_stdout.content))
+        self.assertEqual(['myid1', 'myid2'], [d['id'] for d in data])

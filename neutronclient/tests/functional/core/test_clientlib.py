@@ -94,7 +94,7 @@ class LibraryTestCase(object):
         nets = self.client.list_networks()
         self.assertIsInstance(nets['networks'], list)
 
-    def test_post_put_delele_network(self):
+    def test_post_put_delete_network(self):
         name = str(uuid.uuid4())
         net = self.client.create_network({'network': {'name': name}})
         net_id = net['network']['id']
@@ -105,6 +105,13 @@ class LibraryTestCase(object):
         self.client.delete_network(net_id)
         with testtools.ExpectedException(exceptions.NetworkNotFoundClient):
             self.client.show_network(net_id)
+
+    def test_get_auth_ref(self):
+        # Call some API call to ensure the client is authenticated.
+        self.client.list_networks()
+        auth_ref = self.client.httpclient.get_auth_ref()
+        self.assertIsNotNone(auth_ref)
+        self.assertIsNotNone(auth_ref.role_names)
 
 
 class LibraryHTTPClientTenantTest(LibraryTestCase,

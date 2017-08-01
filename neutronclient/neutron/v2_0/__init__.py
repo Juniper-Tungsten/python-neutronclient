@@ -350,7 +350,6 @@ class NeutronCommand(command.Command):
         pass
 
     def format_output_data(self, data):
-        self.cleanup_output_data(data)
         # Modify data to make it more readable
         if self.resource in data:
             for k, v in six.iteritems(data[self.resource]):
@@ -405,7 +404,9 @@ class CreateCommand(NeutronCommand, show.ShowOne):
             data = obj_creator(self.parent_id, body)
         else:
             data = obj_creator(body)
-        self.format_output_data(data)
+        self.cleanup_output_data(data)
+        if parsed_args.formatter == 'table':
+            self.format_output_data(data)
         info = self.resource in data and data[self.resource] or None
         if info:
             if parsed_args.formatter == 'table':
@@ -528,18 +529,20 @@ class DeleteCommand(NeutronCommand):
                   % {'id': ", ".join(successful_delete),
                      'resource': self.cmd_resource},
                   file=self.app.stdout)
-        if non_existent:
-            print((_("Unable to find %(resource)s(s) with id(s) "
-                     "'%(id)s'") %
-                  {'resource': self.cmd_resource,
-                   'id': ", ".join(non_existent)}),
-                  file=self.app.stdout)
-        if multiple_ids:
-            print((_("Multiple %(resource)s(s) matches found for name(s)"
-                     " '%(id)s'. Please use an ID to be more specific.")) %
-                  {'resource': self.cmd_resource,
-                   'id': ", ".join(multiple_ids)},
-                  file=self.app.stdout)
+        if non_existent or multiple_ids:
+            err_msgs = []
+            if non_existent:
+                err_msgs.append((_("Unable to find %(resource)s(s) with id(s) "
+                                   "'%(id)s'.") %
+                                 {'resource': self.cmd_resource,
+                                  'id': ", ".join(non_existent)}))
+            if multiple_ids:
+                err_msgs.append((_("Multiple %(resource)s(s) matches found "
+                                   "for name(s) '%(id)s'. Please use an ID "
+                                   "to be more specific.") %
+                                 {'resource': self.cmd_resource,
+                                  'id': ", ".join(multiple_ids)}))
+            raise exceptions.NeutronCLIError(message='\n'.join(err_msgs))
 
     def delete_item(self, obj_deleter, neutron_client, item_id):
         if self.allow_names:
@@ -712,15 +715,47 @@ class ListCommand(NeutronCommand, lister.Lister):
             # if no -c(s) by user and list_columns, we use columns in
             # both list_columns and returned resource.
             # Also Keep their order the same as in list_columns
-            _columns = [x for x in self.list_columns if x in _columns]
+            _columns = self._setup_columns_with_tenant_id(self.list_columns,
+                                                          _columns)
 
-        formatters = self._formatters
-        if hasattr(self, '_formatters_csv') and parsed_args.formatter == 'csv':
+        if parsed_args.formatter == 'table':
+            formatters = self._formatters
+        elif (parsed_args.formatter == 'csv'
+              and hasattr(self, '_formatters_csv')):
             formatters = self._formatters_csv
+        else:
+            # For other formatters, we use raw value returned from neutron
+            formatters = {}
 
         return (_columns, (utils.get_item_properties(
             s, _columns, formatters=formatters, )
             for s in info), )
+
+    def _setup_columns_with_tenant_id(self, display_columns, avail_columns):
+        _columns = [x for x in display_columns if x in avail_columns]
+        if 'tenant_id' in display_columns:
+            return _columns
+        if 'tenant_id' not in avail_columns:
+            return _columns
+        if not self.is_admin_role():
+            return _columns
+        try:
+            pos_id = _columns.index('id')
+        except ValueError:
+            pos_id = 0
+        try:
+            pos_name = _columns.index('name')
+        except ValueError:
+            pos_name = 0
+        _columns.insert(max(pos_id, pos_name) + 1, 'tenant_id')
+        return _columns
+
+    def is_admin_role(self):
+        client = self.get_client()
+        auth_ref = client.httpclient.get_auth_ref()
+        if not auth_ref:
+            return False
+        return 'admin' in auth_ref.role_names
 
     def take_action(self, parsed_args):
         self.set_extra_attrs(parsed_args)
@@ -774,7 +809,9 @@ class ShowCommand(NeutronCommand, show.ShowOne):
             data = obj_shower(_id, self.parent_id, **params)
         else:
             data = obj_shower(_id, **params)
-        self.format_output_data(data)
+        self.cleanup_output_data(data)
+        if parsed_args.formatter == 'table':
+            self.format_output_data(data)
         resource = data[self.resource]
         if self.resource in data:
             return zip(*sorted(six.iteritems(resource)))

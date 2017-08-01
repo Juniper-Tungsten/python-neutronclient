@@ -15,7 +15,7 @@ import logging
 
 # TODO(rtheis/amotoki): Add functional test infrastructure for OSC
 # plugin commands.
-# TODO(amotoki): Add and update document on OSC pluign.
+# TODO(amotoki): Add and update document on OSC plugin.
 
 from osc_lib import utils
 
@@ -46,10 +46,10 @@ def make_client(instance):
     # - endpoint_type (do we need to specify it explicitly?)
     # - auth (session object contains auth. Is it required?)
     client = neutron_client(session=instance.session,
-                            region_name=instance._region_name,
-                            endpoint_type=instance._interface,
-                            insecure=instance._insecure,
-                            ca_cert=instance._cacert)
+                            region_name=instance.region_name,
+                            endpoint_type=instance.interface,
+                            insecure=not instance.verify,
+                            ca_cert=instance.cacert)
     return client
 
 
