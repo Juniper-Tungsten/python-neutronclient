@@ -66,11 +66,19 @@ class FakeStdout(object):
         return result
 
 
+class MyRequest(requests.Request):
+    def __init__(self, method=None):
+        self.method = method
+
+
 class MyResp(requests.Response):
-    def __init__(self, status_code, headers=None, reason=None):
+    def __init__(self, status_code, headers=None, reason=None,
+                 request=None, url=None):
         self.status_code = status_code
         self.headers = headers or {}
         self.reason = reason
+        self.request = request or MyRequest()
+        self.url = url
 
 
 class MyApp(object):
@@ -250,8 +258,7 @@ class CLITestV20Base(base.BaseTestCase):
             ress[resource].update({'name': name})
         resstr = self.client.serialize(ress)
         # url method body
-        resource_plural = neutronV2_0._get_resource_plural(cmd_resource,
-                                                           self.client)
+        resource_plural = self.client.get_resource_plural(cmd_resource)
         path = getattr(self.client, resource_plural + "_path")
         if parent_id:
             path = path % parent_id
