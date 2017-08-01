@@ -69,8 +69,6 @@ from neutronclient.neutron.v2_0.lb import vip as lb_vip
 from neutronclient.neutron.v2_0 import metering
 from neutronclient.neutron.v2_0 import network
 from neutronclient.neutron.v2_0 import network_ip_availability
-from neutronclient.neutron.v2_0.nsx import networkgateway
-from neutronclient.neutron.v2_0.nsx import qos_queue
 from neutronclient.neutron.v2_0 import port
 from neutronclient.neutron.v2_0 import purge
 from neutronclient.neutron.v2_0.qos import bandwidth_limit_rule
@@ -277,26 +275,10 @@ COMMAND_V2 = {
     'lb-healthmonitor-disassociate': (
         lb_healthmonitor.DisassociateHealthMonitor
     ),
-    'queue-create': qos_queue.CreateQoSQueue,
-    'queue-delete': qos_queue.DeleteQoSQueue,
-    'queue-show': qos_queue.ShowQoSQueue,
-    'queue-list': qos_queue.ListQoSQueue,
     'agent-list': agent.ListAgent,
     'agent-show': agent.ShowAgent,
     'agent-delete': agent.DeleteAgent,
     'agent-update': agent.UpdateAgent,
-    'net-gateway-create': networkgateway.CreateNetworkGateway,
-    'net-gateway-update': networkgateway.UpdateNetworkGateway,
-    'net-gateway-delete': networkgateway.DeleteNetworkGateway,
-    'net-gateway-show': networkgateway.ShowNetworkGateway,
-    'net-gateway-list': networkgateway.ListNetworkGateway,
-    'net-gateway-connect': networkgateway.ConnectNetworkGateway,
-    'net-gateway-disconnect': networkgateway.DisconnectNetworkGateway,
-    'gateway-device-create': networkgateway.CreateGatewayDevice,
-    'gateway-device-update': networkgateway.UpdateGatewayDevice,
-    'gateway-device-delete': networkgateway.DeleteGatewayDevice,
-    'gateway-device-show': networkgateway.ShowGatewayDevice,
-    'gateway-device-list': networkgateway.ListGatewayDevice,
     'dhcp-agent-network-add': agentscheduler.AddNetworkToDhcpAgent,
     'dhcp-agent-network-remove': agentscheduler.RemoveNetworkFromDhcpAgent,
     'net-list-on-dhcp-agent': agentscheduler.ListNetworksOnDhcpAgent,
@@ -661,10 +643,10 @@ class NeutronShell(app.App):
             '--os-project-name',
             metavar='<auth-project-name>',
             default=utils.env('OS_PROJECT_NAME'),
-            help='Another way to specify tenant name. '
-                 'This option is mutually exclusive with '
-                 ' --os-tenant-name. '
-                 'Defaults to env[OS_PROJECT_NAME].')
+            help=_('Another way to specify tenant name. '
+                   'This option is mutually exclusive with '
+                   ' --os-tenant-name. '
+                   'Defaults to env[OS_PROJECT_NAME].'))
 
         parser.add_argument(
             '--os_tenant_name',
@@ -680,10 +662,10 @@ class NeutronShell(app.App):
             '--os-project-id',
             metavar='<auth-project-id>',
             default=utils.env('OS_PROJECT_ID'),
-            help='Another way to specify tenant ID. '
-            'This option is mutually exclusive with '
-            ' --os-tenant-id. '
-            'Defaults to env[OS_PROJECT_ID].')
+            help=_('Another way to specify tenant ID. '
+                   'This option is mutually exclusive with '
+                   ' --os-tenant-id. '
+                   'Defaults to env[OS_PROJECT_ID].'))
 
         parser.add_argument(
             '--os-username', metavar='<auth-username>',
@@ -706,8 +688,8 @@ class NeutronShell(app.App):
             '--os-user-domain-id',
             metavar='<auth-user-domain-id>',
             default=utils.env('OS_USER_DOMAIN_ID'),
-            help='OpenStack user domain ID. '
-            'Defaults to env[OS_USER_DOMAIN_ID].')
+            help=_('OpenStack user domain ID. '
+                   'Defaults to env[OS_USER_DOMAIN_ID].'))
 
         parser.add_argument(
             '--os_user_domain_id',
@@ -717,8 +699,8 @@ class NeutronShell(app.App):
             '--os-user-domain-name',
             metavar='<auth-user-domain-name>',
             default=utils.env('OS_USER_DOMAIN_NAME'),
-            help='OpenStack user domain name. '
-                 'Defaults to env[OS_USER_DOMAIN_NAME].')
+            help=_('OpenStack user domain name. '
+                   'Defaults to env[OS_USER_DOMAIN_NAME].'))
 
         parser.add_argument(
             '--os_user_domain_name',
@@ -736,13 +718,13 @@ class NeutronShell(app.App):
             '--os-project-domain-id',
             metavar='<auth-project-domain-id>',
             default=utils.env('OS_PROJECT_DOMAIN_ID'),
-            help='Defaults to env[OS_PROJECT_DOMAIN_ID].')
+            help=_('Defaults to env[OS_PROJECT_DOMAIN_ID].'))
 
         parser.add_argument(
             '--os-project-domain-name',
             metavar='<auth-project-domain-name>',
             default=utils.env('OS_PROJECT_DOMAIN_NAME'),
-            help='Defaults to env[OS_PROJECT_DOMAIN_NAME].')
+            help=_('Defaults to env[OS_PROJECT_DOMAIN_NAME].'))
 
         parser.add_argument(
             '--os-cert',
@@ -933,7 +915,8 @@ class NeutronShell(app.App):
         """
         cloud_config = os_client_config.OpenStackConfig().get_one_cloud(
             cloud=self.options.os_cloud, argparse=self.options,
-            network_api_version=self.api_version)
+            network_api_version=self.api_version,
+            verify=not self.options.insecure)
         verify, cert = cloud_config.get_requests_verify_args()
 
         # TODO(singhj): Remove dependancy on HTTPClient
@@ -967,6 +950,7 @@ class NeutronShell(app.App):
             service_name=cloud_config.get_service_name('network'),
             endpoint_type=interface,
             auth=auth,
+            insecure=not verify,
             log_credentials=True)
         return
 
@@ -1026,7 +1010,7 @@ def main(argv=sys.argv[1:]):
         return NeutronShell(NEUTRON_API_VERSION).run(
             list(map(encodeutils.safe_decode, argv)))
     except KeyboardInterrupt:
-        print("... terminating neutron client", file=sys.stderr)
+        print(_("... terminating neutron client"), file=sys.stderr)
         return 130
     except exc.NeutronClientException:
         return 1
